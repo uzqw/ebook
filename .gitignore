@@ -26,3 +26,7 @@ backend/ebook-pocketbase
 
 # local reference symlink
 arch-reference
+
+.agents/
+AGENT.md
+omx_wiki/
