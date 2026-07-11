@@ -1,0 +1,26 @@
+services:
+  ebook-reader-uzqw:
+    image: ${DOCKER_IMAGE:-ebook-reader-uzqw:local}
+    container_name: ${DOCKER_CONTAINER_NAME:-ebook-reader-uzqw}
+    user: "${APP_UID:-${HOST_UID:-1000}}:${APP_GID:-${HOST_GID:-1000}}"
+    # ports:
+    #   - "${DOCKER_HOST_PORT:-18094}:18093"
+    volumes:
+      - ${DOCKER_PB_DATA_PATH:-./.local/pb_data}:/app/pb_data
+    environment:
+      TZ: ${TZ:-${HOST_TZ:-UTC}}
+      POCKETBASE_HOST: 0.0.0.0
+      POCKETBASE_PORT: 18093
+      POCKETBASE_DATA_DIR: /app/pb_data
+      PUBLIC_DIR: /app/dist
+      TMPDIR: /app/pb_data/tmp
+      PB_SUPERUSER_EMAIL: ${PB_SUPERUSER_EMAIL:-admin@reader.local}
+      PB_SUPERUSER_PASSWORD: ${PB_SUPERUSER_PASSWORD:-ebook-reader-admin-123}
+      EPUB_RENDER_FONT: /app/fonts/DroidSansFallback.ttf
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://127.0.0.1:18093/api/health >/dev/null"]
+      interval: 30s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+    restart: unless-stopped

@@ -1,0 +1,31 @@
+version: '3'
+
+tasks:
+  setup:
+    cmds:
+      - npm install
+      - cd backend && go mod tidy && CGO_ENABLED=0 GOOS=linux go build -tags nocgo -o ebook-pocketbase ./cmd/ebook-pocketbase
+
+  backend:
+    cmds:
+      - cd backend && CGO_ENABLED=0 GOOS=linux go build -tags nocgo -o ebook-pocketbase ./cmd/ebook-pocketbase && PUBLIC_DIR=../dist ./ebook-pocketbase serve --http=127.0.0.1:8090 --dir ../.local/pb_data --hooksDir ../pb_hooks
+
+  bootstrap:
+    cmds:
+      - node scripts/bootstrap-pocketbase.mjs
+
+  check:
+    cmds:
+      - npm run check
+      - cd backend && go test ./...
+
+  build:
+    cmds:
+      - npm run build
+      - cd backend && CGO_ENABLED=0 GOOS=linux go build -tags nocgo -o ebook-pocketbase ./cmd/ebook-pocketbase
+
+  docker-deploy:cicd:
+    cmds:
+      - mkdir -p ~/wp/cicd-uzqw/data/ebook-reader/pb_data/tmp && chmod 1777 ~/wp/cicd-uzqw/data/ebook-reader/pb_data/tmp
+      - docker rm -f cicd-local-ebook-reader 2>/dev/null || true
+      - DOCKER_CONTAINER_NAME=cicd-local-ebook-reader DOCKER_PB_DATA_PATH=~/wp/cicd-uzqw/data/ebook-reader/pb_data docker-compose -f compose.yaml -f compose.build.yaml -f compose.observability.yaml up -d --build --force-recreate

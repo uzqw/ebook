@@ -1,0 +1,28 @@
+# dependencies / builds
+node_modules/
+dist/
+
+# local runtime state and logs
+.local/
+.logs/
+.omx/
+
+# PocketBase runtime data / generated binary
+backend/pb_data/
+backend/ebook-pocketbase
+
+# env / caches / local databases
+.env
+.env.*
+!.env.example
+*.tsbuildinfo
+*.db
+*.db-shm
+*.db-wal
+*.sqlite
+*.sqlite3
+
+.DS_Store
+
+# local reference symlink
+arch-reference

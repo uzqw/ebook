@@ -1,0 +1,12 @@
+services:
+  ebook-reader-uzqw:
+    labels:
+      uzqw.observe: "true"
+      uzqw.app: ebook_reader_uzqw
+    networks:
+      - cicd-observability
+
+networks:
+  cicd-observability:
+    external: true
+    name: cicd-observability

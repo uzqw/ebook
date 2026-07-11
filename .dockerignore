@@ -1,0 +1,11 @@
+.git
+.gitignore
+.env
+.local
+.omx
+node_modules
+backend/pb_data
+logs
+*.log
+*.pdf
+arch-reference
