@@ -31,14 +31,15 @@ const canAutoSave = ref(false)
 const saveTimer = ref<number | null>(null)
 const saveQueued = ref(false)
 const readerFrame = ref<HTMLIFrameElement | null>(null)
+const pageHtml = ref('')
+const pageHtmlLoading = ref(false)
+let pageHtmlRequestId = 0
 
 interface TocDisplayItem { title: string; page: number; level: number }
 
 const currentPage = computed(() => pages.value.find((item) => item.page_number === page.value))
 const pageCount = computed(() => book.value?.page_count || pages.value.length || 1)
 const canRenderPage = computed(() => book.value?.parse_status === 'completed')
-const imageUrl = computed(() => canRenderPage.value && book.value ? booksApi.pageImageUrl(book.value.id, page.value) : '')
-const htmlUrl = computed(() => canRenderPage.value && book.value ? booksApi.pageHtmlUrl(book.value.id, page.value) : '')
 const iframeHeight = ref(800)
 function handleMessage(event: MessageEvent) {
   if (event.data && event.data.type === 'ebook-reader-page-height') {
@@ -54,6 +55,27 @@ async function applyCachedFontToFrame() {
     window.setTimeout(() => frame.contentWindow?.dispatchEvent(new Event('resize')), 0)
   } catch (err) {
     error.value = err instanceof Error ? err.message : '字体加载失败'
+  }
+}
+async function loadPageHtml() {
+  const currentBook = book.value
+  if (!canRenderPage.value || !currentBook) {
+    pageHtml.value = ''
+    return
+  }
+  const requestId = ++pageHtmlRequestId
+  pageHtmlLoading.value = true
+  error.value = ''
+  try {
+    const html = await booksApi.fetchPageHtml(currentBook.id, page.value)
+    if (requestId === pageHtmlRequestId) pageHtml.value = html
+  } catch (err) {
+    if (requestId === pageHtmlRequestId) {
+      pageHtml.value = ''
+      error.value = err instanceof Error ? err.message : '页面加载失败'
+    }
+  } finally {
+    if (requestId === pageHtmlRequestId) pageHtmlLoading.value = false
   }
 }
 const tocItems = computed<TocDisplayItem[]>(() => {
@@ -100,6 +122,7 @@ async function load() {
     bookmarks.value = await bookmarksApi.list(props.id)
     notes.value = await notesApi.list(props.id)
     page.value = clampPage(book.value.current_page || 1)
+    await loadPageHtml()
     if (book.value.parse_status === 'pending' || book.value.parse_status === 'processing') {
       parsePollTimer.value = window.setInterval(async () => {
         try {
@@ -113,6 +136,7 @@ async function load() {
             pages.value = await pagesApi.list(props.id)
             bookmarks.value = await bookmarksApi.list(props.id)
             notes.value = await notesApi.list(props.id)
+            await loadPageHtml()
           }
         } catch (err) {
           error.value = err instanceof Error ? err.message : '刷新解析状态失败'
@@ -196,7 +220,7 @@ async function addNote() {
   }
 }
 
-watch(page, () => { scheduleSaveProgress() })
+watch(page, () => { scheduleSaveProgress(); void loadPageHtml() })
 onMounted(() => {
   void load()
   window.addEventListener('message', handleMessage)
@@ -257,9 +281,11 @@ onBeforeUnmount(() => {
           @pointercancel="endDrag"
           @pointerleave="endDrag"
         >
+          <div v-if="pageHtmlLoading" class="flex items-center gap-2 p-4 text-sm font-semibold text-[#384c3d]"><Loader2 class="size-4 animate-spin" />正在加载页面...</div>
           <iframe
+            v-else
             ref="readerFrame"
-            :src="htmlUrl"
+            :srcdoc="pageHtml"
             class="w-full border-0 bg-white"
             :style="{ height: iframeHeight + 'px', ...imageStyle }"
             :class="{ 'pointer-events-none': zoom > 1 || dragging }"

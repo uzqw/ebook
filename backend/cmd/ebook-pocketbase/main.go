@@ -1170,10 +1170,22 @@ func renderPagePNG(app core.App, svc *pdfService, book *core.Record, pageNumber 
 	return out, err
 }
 
+func authTokenFromHTTPRequest(req *http.Request) string {
+	authorization := strings.TrimSpace(req.Header.Get("Authorization"))
+	if len(authorization) > len("Bearer ") && strings.EqualFold(authorization[:len("Bearer ")], "Bearer ") {
+		return strings.TrimSpace(authorization[len("Bearer "):])
+	}
+	return req.URL.Query().Get("token")
+}
+
+func authTokenFromRequest(re *core.RequestEvent) string {
+	return authTokenFromHTTPRequest(re.Request)
+}
+
 func registerRoutes(app core.App, svc *pdfService) {
 	app.OnServe().BindFunc(func(e *core.ServeEvent) error {
 		e.Router.GET("/api/books/{id}/pages/{page}/image", func(re *core.RequestEvent) error {
-			token := re.Request.URL.Query().Get("token")
+			token := authTokenFromRequest(re)
 			if token == "" {
 				return re.UnauthorizedError("missing auth token", nil)
 			}
@@ -1219,7 +1231,7 @@ func registerRoutes(app core.App, svc *pdfService) {
 		})
 
 		e.Router.GET("/api/books/{id}/pages/{page}/html", func(re *core.RequestEvent) error {
-			token := re.Request.URL.Query().Get("token")
+			token := authTokenFromRequest(re)
 			if token == "" {
 				return re.UnauthorizedError("missing auth token", nil)
 			}

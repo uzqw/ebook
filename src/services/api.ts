@@ -64,7 +64,18 @@ export const booksApi = {
     return `${pb.baseUrl}/api/books/${bookId}/pages/${page}/image?token=${encodeURIComponent(pb.authStore.token)}`
   },
   pageHtmlUrl(bookId: string, page: number) {
-    return `${pb.baseUrl}/api/books/${bookId}/pages/${page}/html?token=${encodeURIComponent(pb.authStore.token)}`
+    return `${pb.baseUrl}/api/books/${bookId}/pages/${page}/html`
+  },
+  async fetchPageHtml(bookId: string, page: number, retry = true): Promise<string> {
+    const response = await fetch(this.pageHtmlUrl(bookId, page), {
+      headers: { Authorization: `Bearer ${pb.authStore.token}` },
+    })
+    if (response.status === 401 && retry) {
+      await pb.collection('users').authRefresh()
+      return this.fetchPageHtml(bookId, page, false)
+    }
+    if (!response.ok) throw new Error(`页面加载失败: ${response.status}`)
+    return response.text()
   },
   fontUrl() {
     return `${pb.baseUrl}/api/fonts/DroidSansFallback.ttf`
