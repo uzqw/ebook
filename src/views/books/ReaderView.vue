@@ -1,21 +1,24 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
-import { useRouter } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 import { BookmarkPlus, BookMarked, ChevronLeft, ChevronRight, Info, ListTree, Loader2, Move, NotebookPen, RefreshCw, RotateCcw, X, ZoomIn, ZoomOut } from '@lucide/vue'
 import { bookmarksApi, booksApi, notesApi, pagesApi, readingApi } from '@/services/api'
 import { installCachedCjkFont } from '@/services/font-cache'
 import type { BookPageRecord, BookRecord, BookmarkRecord, BookTocItem, NoteRecord } from '@/types/models'
 import Button from '@/components/ui/Button.vue'
+import Input from '@/components/ui/Input.vue'
 import Textarea from '@/components/ui/Textarea.vue'
 import Badge from '@/components/ui/Badge.vue'
 
 const props = defineProps<{ id: string }>()
 const router = useRouter()
+const route = useRoute()
 const book = ref<BookRecord | null>(null)
 const pages = ref<BookPageRecord[]>([])
 const bookmarks = ref<BookmarkRecord[]>([])
 const notes = ref<NoteRecord[]>([])
 const page = ref(1)
+const pageJump = ref('')
 const noteText = ref('')
 const activeSidePanel = ref<'index' | 'bookmarks' | 'notes' | null>(null)
 const loading = ref(true)
@@ -102,6 +105,11 @@ const imageStyle = computed(() => ({ transform: `translate(${panX.value}px, ${pa
 function clampPage(target: number) {
   return Math.min(pageCount.value, Math.max(1, target))
 }
+const statusText = (status: string) => ({ pending: '待解析', processing: '解析中', completed: '已解析', failed: '解析失败' }[status] || status)
+function initialPage() {
+  const queryPage = Number(route.query.page)
+  return clampPage(Number.isFinite(queryPage) && queryPage >= 1 ? queryPage : book.value?.current_page || 1)
+}
 
 async function load() {
   if (parsePollTimer.value !== null) {
@@ -121,7 +129,7 @@ async function load() {
     pages.value = await pagesApi.list(props.id)
     bookmarks.value = await bookmarksApi.list(props.id)
     notes.value = await notesApi.list(props.id)
-    page.value = clampPage(book.value.current_page || 1)
+    page.value = initialPage()
     await loadPageHtml()
     if (book.value.parse_status === 'pending' || book.value.parse_status === 'processing') {
       parsePollTimer.value = window.setInterval(async () => {
@@ -156,6 +164,25 @@ function goToPage(target: number) {
 }
 function prev() { goToPage(page.value - 1) }
 function next() { goToPage(page.value + 1) }
+function jumpToPage() {
+  const target = Number(pageJump.value)
+  if (Number.isFinite(target) && target >= 1) goToPage(target)
+  pageJump.value = ''
+}
+function isEditableTarget(target: EventTarget | null) {
+  const el = target as HTMLElement | null
+  return !!el && (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA' || el.tagName === 'SELECT' || el.isContentEditable)
+}
+function onGlobalKeydown(event: KeyboardEvent) {
+  if (isEditableTarget(event.target)) return
+  if (event.key === 'ArrowLeft' || event.key === 'PageUp') {
+    event.preventDefault()
+    prev()
+  } else if (event.key === 'ArrowRight' || event.key === 'PageDown' || event.key === ' ') {
+    event.preventDefault()
+    next()
+  }
+}
 function toggleSidePanel(panel: 'index' | 'bookmarks' | 'notes') { activeSidePanel.value = activeSidePanel.value === panel ? null : panel }
 function resetZoom() { zoom.value = 1; panX.value = 0; panY.value = 0; dragging.value = false }
 function zoomIn() { zoom.value = Math.min(4, Number((zoom.value + 0.25).toFixed(2))) }
@@ -220,10 +247,17 @@ async function addNote() {
   }
 }
 
-watch(page, () => { scheduleSaveProgress(); void loadPageHtml() })
+watch(page, () => {
+  scheduleSaveProgress()
+  void loadPageHtml()
+  if (String(page.value) !== String(route.query.page || '')) {
+    void router.replace({ query: { ...route.query, page: String(page.value) } })
+  }
+})
 onMounted(() => {
   void load()
   window.addEventListener('message', handleMessage)
+  window.addEventListener('keydown', onGlobalKeydown)
 })
 onBeforeUnmount(() => {
   if (parsePollTimer.value !== null) window.clearInterval(parsePollTimer.value)
@@ -234,6 +268,7 @@ onBeforeUnmount(() => {
     })
   }
   window.removeEventListener('message', handleMessage)
+  window.removeEventListener('keydown', onGlobalKeydown)
 })
 </script>
 
@@ -243,7 +278,7 @@ onBeforeUnmount(() => {
       <div>
         <p class="text-xs font-extrabold uppercase tracking-widest text-[#705c21]">Reader</p>
         <h1 class="text-3xl font-extrabold text-[#142217]">{{ book?.title || '书籍阅读' }}</h1>
-        <p class="mt-2 text-sm text-[#384c3d]">右侧按钮可展开目录、书签和笔记；页面可在当前区域缩放拖动。</p>
+        <p class="mt-2 text-sm text-[#384c3d]">右侧按钮可展开目录、书签和笔记；支持 ← / → 方向键翻页，页面可在当前区域缩放拖动。</p>
       </div>
       <div class="flex flex-wrap gap-2">
         <Button variant="outline" @click="load"><RefreshCw data-icon="inline-start" />刷新</Button>
@@ -251,7 +286,10 @@ onBeforeUnmount(() => {
       </div>
     </div>
 
-    <p v-if="error" class="mb-4 rounded-lg border border-red-200 bg-red-50 p-3 text-sm font-semibold text-red-700">{{ error }}</p>
+    <div v-if="error" role="alert" class="mb-4 flex flex-wrap items-center justify-between gap-2 rounded-lg border border-red-200 bg-red-50 p-3 text-sm font-semibold text-red-700">
+      <span>{{ error }}</span>
+      <Button size="sm" variant="outline" @click="load">重试</Button>
+    </div>
     <div v-if="loading" class="panel flex items-center gap-2 text-[#384c3d]"><Loader2 class="size-4 animate-spin" />正在打开书籍...</div>
 
     <div v-else-if="book" class="grid gap-5" :class="readerGridClass">
@@ -261,19 +299,20 @@ onBeforeUnmount(() => {
             <Button variant="outline" size="sm" :disabled="page <= 1" @click="prev"><ChevronLeft data-icon="inline-start" />上一页</Button>
             <strong class="text-sm text-[#142217]">第 {{ page }} / {{ pageCount }} 页</strong>
             <Button variant="outline" size="sm" :disabled="page >= pageCount" @click="next">下一页<ChevronRight data-icon="inline-end" /></Button>
+            <Input v-model="pageJump" type="number" min="1" :max="pageCount" class="h-9 w-20" :placeholder="String(page)" aria-label="跳转到页码" @keyup.enter="jumpToPage" />
           </div>
           <div class="flex items-center gap-2">
             <Button variant="outline" size="sm" @click="zoomOut"><ZoomOut data-icon="inline-start" />缩小</Button>
             <Button variant="outline" size="sm" @click="zoomIn"><ZoomIn data-icon="inline-start" />放大 {{ Math.round(zoom * 100) }}%</Button>
             <Button variant="ghost" size="sm" @click="resetZoom"><RotateCcw data-icon="inline-start" />重置</Button>
             <span v-if="zoom > 1" class="inline-flex items-center gap-1 text-xs font-bold text-[#384c3d]"><Move class="size-3.5" />拖动查看</span>
-            <Badge :tone="book.parse_status === 'completed' ? 'green' : book.parse_status === 'failed' ? 'red' : 'amber'">{{ book.parse_status }}</Badge>
+            <Badge :tone="book.parse_status === 'completed' ? 'green' : book.parse_status === 'failed' ? 'red' : 'amber'">{{ statusText(book.parse_status) }}</Badge>
           </div>
         </div>
         <div v-if="book.parse_status !== 'completed'" class="panel mb-4 text-sm text-[#384c3d]">解析尚未完成。若刚上传，请稍后刷新；失败时可查看书籍信息里的错误。</div>
         <div
           v-if="canRenderPage"
-          class="reader-page reader-image-frame"
+          class="reader-page reader-image-frame relative"
           :class="{ 'reader-image-frame--zoomed': zoom > 1, 'reader-image-frame--dragging': dragging }"
           @pointerdown="startDrag"
           @pointermove="onDrag"
@@ -281,16 +320,17 @@ onBeforeUnmount(() => {
           @pointercancel="endDrag"
           @pointerleave="endDrag"
         >
-          <div v-if="pageHtmlLoading" class="flex items-center gap-2 p-4 text-sm font-semibold text-[#384c3d]"><Loader2 class="size-4 animate-spin" />正在加载页面...</div>
           <iframe
-            v-else
             ref="readerFrame"
             :srcdoc="pageHtml"
+            title="书页内容"
+            sandbox="allow-scripts allow-same-origin"
             class="w-full border-0 bg-white"
             :style="{ height: iframeHeight + 'px', ...imageStyle }"
             :class="{ 'pointer-events-none': zoom > 1 || dragging }"
             @load="applyCachedFontToFrame"
           ></iframe>
+          <div v-if="pageHtmlLoading" class="absolute inset-0 z-10 flex items-center justify-center gap-2 bg-white/75 text-sm font-semibold text-[#384c3d]"><Loader2 class="size-4 animate-spin" />正在加载页面...</div>
         </div>
         <div v-else class="panel text-sm text-[#384c3d]">解析完成后将显示页面图片，请稍后刷新。</div>
         <article v-if="currentPage?.text" class="panel prose-page">
@@ -301,15 +341,15 @@ onBeforeUnmount(() => {
 
       <aside class="reader-side-tools">
         <div class="reader-side-buttons">
-          <Button variant="outline" size="sm" class="reader-side-button" :class="activeSidePanel === 'index' ? 'bg-[#edf3e8]' : ''" title="页面索引" @click="toggleSidePanel('index')"><ListTree data-icon="inline-start" /><span>索引</span></Button>
-          <Button variant="outline" size="sm" class="reader-side-button" :class="activeSidePanel === 'bookmarks' ? 'bg-[#edf3e8]' : ''" title="书签" @click="toggleSidePanel('bookmarks')"><BookMarked data-icon="inline-start" /><span>书签</span></Button>
-          <Button variant="outline" size="sm" class="reader-side-button" :class="activeSidePanel === 'notes' ? 'bg-[#edf3e8]' : ''" title="笔记" @click="toggleSidePanel('notes')"><NotebookPen data-icon="inline-start" /><span>笔记</span></Button>
+          <Button variant="outline" size="sm" class="reader-side-button" :class="activeSidePanel === 'index' ? 'bg-[#edf3e8]' : ''" title="页面索引" :aria-pressed="activeSidePanel === 'index'" @click="toggleSidePanel('index')"><ListTree data-icon="inline-start" /><span>索引</span></Button>
+          <Button variant="outline" size="sm" class="reader-side-button" :class="activeSidePanel === 'bookmarks' ? 'bg-[#edf3e8]' : ''" title="书签" :aria-pressed="activeSidePanel === 'bookmarks'" @click="toggleSidePanel('bookmarks')"><BookMarked data-icon="inline-start" /><span>书签</span></Button>
+          <Button variant="outline" size="sm" class="reader-side-button" :class="activeSidePanel === 'notes' ? 'bg-[#edf3e8]' : ''" title="笔记" :aria-pressed="activeSidePanel === 'notes'" @click="toggleSidePanel('notes')"><NotebookPen data-icon="inline-start" /><span>笔记</span></Button>
         </div>
 
         <section v-if="activeSidePanel" class="panel reader-side-panel">
           <div class="mb-3 flex items-center justify-between gap-2">
             <h2 class="font-extrabold text-[#142217]">{{ sidePanelTitle }}</h2>
-            <Button variant="ghost" size="sm" class="px-2" title="收起" @click="activeSidePanel = null"><X data-icon="inline-start" /></Button>
+            <Button variant="ghost" size="sm" class="px-2" title="收起" aria-label="收起面板" @click="activeSidePanel = null"><X data-icon="inline-start" /></Button>
           </div>
 
           <template v-if="activeSidePanel === 'index'">

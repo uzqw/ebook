@@ -69,4 +69,5 @@ export interface ReadingRecord {
   progress: number
   read_seconds: number
   updated: string
+  expand?: { book?: BookRecord }
 }

@@ -4,8 +4,8 @@ import { cn } from '@/lib/utils'
 const props = withDefaults(defineProps<{ variant?: 'default' | 'secondary' | 'outline' | 'ghost' | 'destructive'; size?: 'sm' | 'md' | 'lg'; class?: string; type?: 'button' | 'submit' | 'reset' }>(), { variant: 'default', size: 'md', type: 'button' })
 const classes = computed(() => cn(
   'inline-flex items-center justify-center gap-2 rounded-lg font-extrabold transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50',
-  props.size === 'sm' && 'h-8 px-3 text-xs',
-  props.size === 'md' && 'h-10 px-4 text-sm',
+  props.size === 'sm' && 'h-9 px-3 text-xs',
+  props.size === 'md' && 'h-11 px-4 text-sm',
   props.size === 'lg' && 'h-12 px-5 text-base',
   props.variant === 'default' && 'bg-primary text-primary-foreground hover:bg-[#14532d] shadow-sm',
   props.variant === 'secondary' && 'bg-secondary text-secondary-foreground hover:bg-[#d8e3cc]',

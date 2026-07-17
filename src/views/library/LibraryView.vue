@@ -72,7 +72,10 @@ onMounted(load)
       </div>
     </div>
 
-    <p v-if="error" class="mb-4 rounded-lg border border-red-200 bg-red-50 p-3 text-sm font-semibold text-red-700">{{ error }}</p>
+    <div v-if="error" role="alert" class="mb-4 flex flex-wrap items-center justify-between gap-2 rounded-lg border border-red-200 bg-red-50 p-3 text-sm font-semibold text-red-700">
+      <span>{{ error }}</span>
+      <Button size="sm" variant="outline" @click="load">重试</Button>
+    </div>
     <div v-if="loading" class="panel text-[#384c3d]">正在加载书架...</div>
     <div v-else-if="!books.length" class="panel grid place-items-center py-16 text-center">
       <BookOpen class="mb-3 size-12 text-[#15803d]" />

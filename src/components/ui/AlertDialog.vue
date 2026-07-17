@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, watch } from 'vue'
+import { computed, nextTick, onBeforeUnmount, ref, watch } from 'vue'
 import Button from '@/components/ui/Button.vue'
 
 const props = withDefaults(defineProps<{
@@ -9,17 +9,22 @@ const props = withDefaults(defineProps<{
   confirmText?: string
   cancelText?: string
   loading?: boolean
+  loadingText?: string
 }>(), {
   description: '',
   confirmText: '确认',
   cancelText: '取消',
   loading: false,
+  loadingText: '处理中...',
 })
 
 const emit = defineEmits<{
   'update:open': [value: boolean]
   confirm: []
 }>()
+
+const dialogEl = ref<HTMLElement | null>(null)
+let previousActiveElement: HTMLElement | null = null
 
 const dialogTitleId = computed(() => `alert-dialog-title-${props.title.replace(/\W+/g, '-').toLowerCase()}`)
 const dialogDescriptionId = computed(() => `${dialogTitleId.value}-description`)
@@ -28,13 +33,48 @@ function close() {
   if (!props.loading) emit('update:open', false)
 }
 
-function onKeydown(event: KeyboardEvent) {
-  if (event.key === 'Escape') close()
+function focusableElements(): HTMLElement[] {
+  if (!dialogEl.value) return []
+  return Array.from(
+    dialogEl.value.querySelectorAll<HTMLElement>('button, [href], input, textarea, select, [tabindex]:not([tabindex="-1"])'),
+  ).filter((el) => !el.hasAttribute('disabled'))
 }
 
-watch(() => props.open, (open) => {
+function onKeydown(event: KeyboardEvent) {
+  if (event.key === 'Escape') {
+    close()
+    return
+  }
+  if (event.key !== 'Tab') return
+  const focusable = focusableElements()
+  if (!focusable.length) return
+  const first = focusable[0]
+  const last = focusable[focusable.length - 1]
+  const active = document.activeElement as HTMLElement | null
+  if (event.shiftKey && (active === first || active === dialogEl.value)) {
+    event.preventDefault()
+    last.focus()
+  } else if (!event.shiftKey && active === last) {
+    event.preventDefault()
+    first.focus()
+  }
+}
+
+watch(() => props.open, async (open) => {
   document.body.style.overflow = open ? 'hidden' : ''
+  if (open) {
+    previousActiveElement = document.activeElement as HTMLElement | null
+    await nextTick()
+    dialogEl.value?.focus()
+  } else {
+    previousActiveElement?.focus()
+    previousActiveElement = null
+  }
 }, { immediate: true })
+
+onBeforeUnmount(() => {
+  document.body.style.overflow = ''
+})
 </script>
 
 <template>
@@ -47,7 +87,7 @@ watch(() => props.open, (open) => {
       leave-from-class="opacity-100"
       leave-to-class="opacity-0"
     >
-      <div v-if="open" class="fixed inset-0 bg-slate-950/50 backdrop-blur-sm" @click="close" />
+      <div v-if="open" class="fixed inset-0 z-50 bg-slate-950/50 backdrop-blur-sm" @click="close" />
     </Transition>
 
     <Transition
@@ -60,11 +100,12 @@ watch(() => props.open, (open) => {
     >
       <div
         v-if="open"
+        ref="dialogEl"
         role="alertdialog"
         aria-modal="true"
         :aria-labelledby="dialogTitleId"
         :aria-describedby="description ? dialogDescriptionId : undefined"
-        class="fixed left-1/2 top-1/2 w-[calc(100%-2rem)] max-w-lg -translate-x-1/2 -translate-y-1/2 rounded-lg border border-border bg-background p-6 text-foreground shadow-lg"
+        class="fixed left-1/2 top-1/2 z-50 w-[calc(100%-2rem)] max-w-lg -translate-x-1/2 -translate-y-1/2 rounded-lg border border-border bg-background p-6 text-foreground shadow-lg focus-visible:outline-none"
         tabindex="-1"
         @keydown="onKeydown"
       >
@@ -74,7 +115,7 @@ watch(() => props.open, (open) => {
         </div>
         <div class="mt-6 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
           <Button variant="outline" :disabled="loading" @click="close">{{ cancelText }}</Button>
-          <Button variant="destructive" :disabled="loading" @click="emit('confirm')">{{ loading ? '删除中...' : confirmText }}</Button>
+          <Button variant="destructive" :disabled="loading" @click="emit('confirm')">{{ loading ? loadingText : confirmText }}</Button>
         </div>
       </div>
     </Transition>
