@@ -82,7 +82,7 @@ button, input, textarea, select { font: inherit; }
   border-radius: 12px;
   color: var(--muted-text);
   font-size: 14px;
-  font-weight: 800;
+  font-weight: 600;
   transition: all 0.2s ease;
 }
 .nav-link:hover { color: var(--accent-deep); background: rgba(21, 128, 61, 0.08); }
@@ -96,7 +96,8 @@ button, input, textarea, select { font: inherit; }
   box-shadow: 0 10px 25px -5px rgba(20, 34, 23, 0.05), 0 8px 10px -6px rgba(20, 34, 23, 0.05);
 }
 .page-card, .panel { padding: 24px; }
-.page-header { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; margin-bottom: 24px; }
+.page-header { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; margin-bottom: 24px; flex-wrap: wrap; }
+.page-header h1 { white-space: nowrap; }
 .reader-page { width: 100%; margin: 0 0 24px; background: white; border-radius: 10px; box-shadow: 0 18px 40px rgba(15, 23, 42, 0.08); overflow: hidden; }
 .reader-page img { display: block; width: 100%; height: auto; }
 .prose-page { white-space: pre-wrap; line-height: 1.9; color: #1f2937; max-width: 65ch; }
@@ -117,13 +118,14 @@ button, input, textarea, select { font: inherit; }
     border-bottom: 1px solid var(--line);
     overflow-x: auto;
   }
-  .sidebar-brand { align-items: center; }
+  .sidebar-top { display: flex; flex-direction: row; align-items: center; gap: 12px; flex: 1 1 auto; min-width: 0; }
+  .sidebar-brand { align-items: center; flex-shrink: 0; }
   .sidebar-brand__copy span { display: none; }
   .sidebar-brand__copy h1 { margin-top: 0; white-space: nowrap; }
   .sidebar-collapse-button { display: none; }
-  .nav-links { flex-direction: row; margin-top: 0; gap: 4px; overflow-x: auto; }
+  .nav-links { flex: 1 1 auto; flex-direction: row; margin-top: 0; gap: 4px; overflow-x: auto; min-width: 0; }
   .nav-link { white-space: nowrap; padding: 8px 12px; }
-  .sidebar-footer { border-top: none; padding-top: 0; margin-left: auto; flex-direction: row; align-items: center; }
+  .sidebar-footer { border-top: none; padding-top: 0; flex-shrink: 0; flex-direction: row; align-items: center; }
   .sidebar-user-card { display: none; }
   .sidebar-logout { width: auto; padding: 0 10px; }
   .sidebar-logout-label { display: none; }
@@ -185,51 +187,53 @@ button, input, textarea, select { font: inherit; }
   will-change: transform;
 }
 
-.reader-side-tools {
-  display: grid;
-  grid-template-columns: auto minmax(0, 1fr);
-  align-items: start;
-  gap: 0.75rem;
-  min-width: 0;
+.reader-column {
+  width: 100%;
+  max-width: 780px;
+  margin: 0 auto;
 }
 
-.reader-side-buttons {
-  position: sticky;
-  top: 1rem;
-  display: flex;
-  flex-direction: column;
-  gap: 0.5rem;
+.reader-chrome {
+  background: rgba(244, 247, 238, 0.92);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  box-shadow: 0 8px 24px rgba(20, 34, 23, 0.10);
 }
 
-.reader-side-button {
-  width: 3.5rem;
-  height: auto;
-  min-height: 3rem;
-  flex-direction: column;
-  padding: 0.5rem 0.25rem;
-  font-size: 0.75rem;
+.reader-chrome-enter-active,
+.reader-chrome-leave-active {
+  transition: opacity 0.18s ease, transform 0.18s ease;
+}
+.reader-chrome-enter-from,
+.reader-chrome-leave-to {
+  opacity: 0;
+}
+.reader-chrome-enter-from.reader-chrome--top,
+.reader-chrome-leave-to.reader-chrome--top {
+  transform: translate(-50%, -8px);
+}
+.reader-chrome-enter-from.reader-chrome--bottom,
+.reader-chrome-leave-to.reader-chrome--bottom {
+  transform: translate(-50%, 8px);
 }
 
-.reader-side-panel {
-  max-height: calc(100vh - 9rem);
-  overflow: auto;
+.reader-drawer-enter-active,
+.reader-drawer-leave-active {
+  transition: transform 0.2s ease, opacity 0.2s ease;
+}
+.reader-drawer-enter-from,
+.reader-drawer-leave-to {
+  transform: translateX(24px);
+  opacity: 0;
 }
 
-@media (max-width: 1279px) {
-  .reader-side-tools {
-    grid-template-columns: minmax(0, 1fr);
-  }
-
-  .reader-side-buttons {
-    position: static;
-    flex-direction: row;
-    flex-wrap: wrap;
-  }
-
-  .reader-side-button {
-    width: auto;
-    min-height: 2.25rem;
-    flex-direction: row;
-    padding: 0.5rem 0.75rem;
-  }
+.reader-scrim-enter-active,
+.reader-scrim-leave-active {
+  transition: opacity 0.2s ease;
+}
+.reader-scrim-enter-from,
+.reader-scrim-leave-to {
+  opacity: 0;
 }

@@ -22,7 +22,7 @@ watch(() => route.fullPath, async () => {
   <div class="shell" :class="{ 'shell--sidebar-collapsed': sidebarCollapsed }">
     <a href="#main-content" class="skip-link">跳到主要内容</a>
     <aside class="sidebar flex flex-col justify-between">
-      <div>
+      <div class="sidebar-top">
         <div class="sidebar-brand flex items-start justify-between gap-3">
           <div class="sidebar-brand__copy min-w-0">
             <span class="block text-[11px] font-extrabold uppercase tracking-widest text-[#705c21]">Ebook Reader</span>
