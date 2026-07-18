@@ -22,12 +22,12 @@ const noteText = ref('')
 const activeSidePanel = ref<'index' | 'bookmarks' | 'notes' | null>(null)
 const loading = ref(true)
 const error = ref('')
-const zoom = ref(1)
-const panX = ref(0)
-const panY = ref(0)
-const dragging = ref(false)
-const dragStart = ref({ x: 0, y: 0, panX: 0, panY: 0 })
-const suppressClick = ref(false)
+const ZOOM_STORAGE_KEY = 'ebook-reader-zoom'
+function storedZoom() {
+  const value = Number(window.localStorage.getItem(ZOOM_STORAGE_KEY))
+  return Number.isFinite(value) && value >= 1 && value <= 4 ? value : 1
+}
+const zoom = ref(storedZoom())
 const startedAt = Date.now()
 const parsePollTimer = ref<number | null>(null)
 const canAutoSave = ref(false)
@@ -56,6 +56,10 @@ async function applyCachedFontToFrame() {
   const frame = readerFrame.value
   const doc = frame?.contentDocument
   if (!frame || !doc) return
+  doc.addEventListener('mousemove', onFrameMousemove)
+  doc.addEventListener('pointerdown', onGlobalPointerDown)
+  doc.addEventListener('pointerup', onGlobalPointerUp)
+  doc.addEventListener('click', onFrameClick)
   try {
     await installCachedCjkFont(doc, true)
     window.setTimeout(() => frame.contentWindow?.dispatchEvent(new Event('resize')), 0)
@@ -103,7 +107,6 @@ const pageIndexItems = computed(() => pages.value.map((item) => ({
 const navigationItems = computed(() => tocItems.value.length ? tocItems.value : pageIndexItems.value)
 const navigationTitle = computed(() => tocItems.value.length ? '文档目录' : '页面索引')
 const sidePanelTitle = computed(() => activeSidePanel.value === 'index' ? navigationTitle.value : activeSidePanel.value === 'bookmarks' ? '书签' : activeSidePanel.value === 'notes' ? '笔记' : '')
-const imageStyle = computed(() => ({ transform: `translate(${panX.value}px, ${panY.value}px) scale(${zoom.value})` }))
 function clampPage(target: number) {
   return Math.min(pageCount.value, Math.max(1, target))
 }
@@ -113,7 +116,29 @@ function initialPage() {
   return clampPage(Number.isFinite(queryPage) && queryPage >= 1 ? queryPage : book.value?.current_page || 1)
 }
 
+let mouseDown = false
+function onGlobalPointerDown() { mouseDown = true }
+function onGlobalPointerUp() { mouseDown = false }
+function nearChromeEdge(clientY: number, viewportHeight: number) {
+  return clientY < 72 || clientY > viewportHeight - 96
+}
+function onSectionMousemove(event: MouseEvent) {
+  if (nearChromeEdge(event.clientY, window.innerHeight)) showChrome()
+}
+function onFrameMousemove(event: MouseEvent) {
+  const frameWindow = readerFrame.value?.contentWindow
+  if (frameWindow && nearChromeEdge(event.clientY, frameWindow.innerHeight)) showChrome()
+}
+function onFrameClick(event: MouseEvent) {
+  const doc = readerFrame.value?.contentDocument
+  if (!doc) return
+  const selection = doc.getSelection()
+  if (selection && !selection.isCollapsed) return
+  if (event.target !== doc.body && event.target !== doc.documentElement) return
+  toggleChrome()
+}
 function showChrome() {
+  if (mouseDown) return
   chromeVisible.value = true
   if (chromeTimer.value !== null) window.clearTimeout(chromeTimer.value)
   chromeTimer.value = window.setTimeout(() => {
@@ -181,7 +206,6 @@ async function load() {
 }
 function goToPage(target: number) {
   page.value = clampPage(target)
-  resetZoom()
 }
 function prev() { goToPage(page.value - 1) }
 function next() { goToPage(page.value + 1) }
@@ -211,30 +235,12 @@ function onGlobalKeydown(event: KeyboardEvent) {
   }
 }
 function toggleSidePanel(panel: 'index' | 'bookmarks' | 'notes') { activeSidePanel.value = activeSidePanel.value === panel ? null : panel }
-function resetZoom() { zoom.value = 1; panX.value = 0; panY.value = 0; dragging.value = false }
+function resetZoom() { zoom.value = 1 }
 function zoomIn() { zoom.value = Math.min(4, Number((zoom.value + 0.25).toFixed(2))) }
-function zoomOut() { zoom.value = Math.max(1, Number((zoom.value - 0.25).toFixed(2))); if (zoom.value === 1) resetZoom() }
-function startDrag(event: PointerEvent) {
-  if (zoom.value <= 1) return
-  suppressClick.value = false
-  dragging.value = true
-  dragStart.value = { x: event.clientX, y: event.clientY, panX: panX.value, panY: panY.value }
-  ;(event.currentTarget as HTMLElement).setPointerCapture(event.pointerId)
-}
-function onDrag(event: PointerEvent) {
-  if (!dragging.value) return
-  const deltaX = event.clientX - dragStart.value.x
-  const deltaY = event.clientY - dragStart.value.y
-  if (Math.abs(deltaX) + Math.abs(deltaY) > 4) suppressClick.value = true
-  panX.value = dragStart.value.panX + deltaX
-  panY.value = dragStart.value.panY + deltaY
-}
-function endDrag() { dragging.value = false }
+function zoomOut() { zoom.value = Math.max(1, Number((zoom.value - 0.25).toFixed(2))) }
 function onPageClick() {
-  if (suppressClick.value) {
-    suppressClick.value = false
-    return
-  }
+  const selection = window.getSelection()
+  if (selection && !selection.isCollapsed) return
   toggleChrome()
 }
 async function saveProgress() {
@@ -290,6 +296,9 @@ watch(page, () => {
     void router.replace({ query: { ...route.query, page: String(page.value) } })
   }
 })
+watch(zoom, (value) => {
+  window.localStorage.setItem(ZOOM_STORAGE_KEY, String(value))
+})
 watch(activeSidePanel, (panel) => {
   if (panel) {
     chromeVisible.value = true
@@ -306,6 +315,8 @@ onMounted(() => {
   showChrome()
   window.addEventListener('message', handleMessage)
   window.addEventListener('keydown', onGlobalKeydown)
+  window.addEventListener('pointerdown', onGlobalPointerDown)
+  window.addEventListener('pointerup', onGlobalPointerUp)
 })
 onBeforeUnmount(() => {
   if (parsePollTimer.value !== null) window.clearInterval(parsePollTimer.value)
@@ -318,11 +329,13 @@ onBeforeUnmount(() => {
   }
   window.removeEventListener('message', handleMessage)
   window.removeEventListener('keydown', onGlobalKeydown)
+  window.removeEventListener('pointerdown', onGlobalPointerDown)
+  window.removeEventListener('pointerup', onGlobalPointerUp)
 })
 </script>
 
 <template>
-  <section class="min-h-dvh" @mousemove="showChrome">
+  <section class="min-h-dvh select-none" @mousemove="onSectionMousemove">
     <div v-if="error" role="alert" class="fixed left-1/2 top-4 z-[60] flex w-[calc(100%-2rem)] max-w-lg -translate-x-1/2 items-center justify-between gap-2 rounded-xl border border-red-200 bg-red-50 p-3 text-sm font-semibold text-red-700 shadow-lg">
       <span>{{ error }}</span>
       <Button size="sm" variant="outline" @click="load">重试</Button>
@@ -359,32 +372,24 @@ onBeforeUnmount(() => {
       <div v-if="book.parse_status !== 'completed'" class="panel mb-4 text-sm text-[#384c3d]">解析尚未完成。若刚上传，请稍后刷新；失败时可查看书籍信息里的错误。</div>
       <div
         v-if="canRenderPage"
-        class="reader-page reader-image-frame relative"
-        :class="{ 'reader-image-frame--zoomed': zoom > 1, 'reader-image-frame--dragging': dragging }"
-        @pointerdown="startDrag"
-        @pointermove="onDrag"
-        @pointerup="endDrag"
-        @pointercancel="endDrag"
-        @pointerleave="endDrag"
+        class="reader-zoom-stage"
+        :style="{ height: `${iframeHeight * zoom}px` }"
         @click="onPageClick"
       >
-        <iframe
-          ref="readerFrame"
-          :srcdoc="pageHtml"
-          title="书页内容"
-          sandbox="allow-scripts allow-same-origin"
-          class="w-full border-0 bg-white"
-          :style="{ height: iframeHeight + 'px', ...imageStyle }"
-          :class="{ 'pointer-events-none': zoom > 1 || dragging }"
-          @load="applyCachedFontToFrame"
-        ></iframe>
-        <div v-if="pageHtmlLoading" class="absolute inset-0 z-10 flex items-center justify-center gap-2 bg-white/75 text-sm font-semibold text-[#384c3d]"><Loader2 class="size-4 animate-spin" />正在加载页面...</div>
+        <div class="reader-page reader-image-frame" :style="{ transform: `scale(${zoom})`, transformOrigin: 'top center' }">
+          <iframe
+            ref="readerFrame"
+            :srcdoc="pageHtml"
+            title="书页内容"
+            sandbox="allow-scripts allow-same-origin"
+            class="w-full border-0 bg-white"
+            :style="{ height: iframeHeight + 'px' }"
+            @load="applyCachedFontToFrame"
+          ></iframe>
+          <div v-if="pageHtmlLoading" class="absolute inset-0 z-10 flex items-center justify-center gap-2 bg-white/75 text-sm font-semibold text-[#384c3d]"><Loader2 class="size-4 animate-spin" />正在加载页面...</div>
+        </div>
       </div>
       <div v-else class="panel text-sm text-[#384c3d]">解析完成后将显示页面图片，请稍后刷新。</div>
-      <article v-if="currentPage?.text" class="panel prose-page mx-auto mt-6">
-        <h2 class="mb-3 text-lg font-extrabold text-[#142217]">本页文本</h2>
-        {{ currentPage.text }}
-      </article>
     </main>
 
     <Transition name="reader-chrome">
@@ -401,7 +406,7 @@ onBeforeUnmount(() => {
     </Transition>
 
     <Transition name="reader-drawer">
-      <aside v-if="activeSidePanel" class="fixed inset-y-0 right-0 z-50 flex w-[min(340px,92vw)] flex-col border-l border-[#cbe0bf] bg-[#f8faf4] p-4 shadow-2xl">
+      <aside v-if="activeSidePanel" class="fixed inset-y-0 right-0 z-50 flex w-[min(340px,92vw)] select-text flex-col border-l border-[#cbe0bf] bg-[#f8faf4] p-4 shadow-2xl">
         <div class="mb-3 flex items-center justify-between gap-2">
           <h2 class="font-extrabold text-[#142217]">{{ sidePanelTitle }}</h2>
           <Button variant="ghost" size="sm" class="px-2" title="收起" aria-label="收起面板" @click="activeSidePanel = null"><X data-icon="inline-start" /></Button>

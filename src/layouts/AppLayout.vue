@@ -25,8 +25,8 @@ watch(() => route.fullPath, async () => {
       <div class="sidebar-top">
         <div class="sidebar-brand flex items-start justify-between gap-3">
           <div class="sidebar-brand__copy min-w-0">
-            <span class="block text-[11px] font-extrabold uppercase tracking-widest text-[#705c21]">Ebook Reader</span>
-            <h1 class="mt-0.5 text-base font-extrabold leading-snug tracking-tight text-[#142217]">青简书房</h1>
+            <span class="block text-[10px] font-extrabold uppercase tracking-widest text-[#0f7643]/80">Ebook Reader</span>
+            <h1 class="mt-0.5 text-lg font-black leading-snug tracking-tight text-[#0f1e14]">青简书房</h1>
           </div>
           <Button variant="outline" size="sm" class="sidebar-collapse-button shrink-0 px-2" :aria-label="sidebarCollapsed ? '展开侧边栏' : '收起侧边栏'" :title="sidebarCollapsed ? '展开侧边栏' : '收起侧边栏'" @click="sidebarCollapsed = !sidebarCollapsed">
             <ChevronRight v-if="sidebarCollapsed" data-icon="inline-start" />
@@ -42,10 +42,10 @@ watch(() => route.fullPath, async () => {
         </nav>
       </div>
 
-      <div class="sidebar-footer flex flex-col gap-4 border-t border-[#cbe0bf]/80 pt-4">
-        <div class="sidebar-user-card rounded-lg border border-[#cbe0bf]/80 bg-white p-3 shadow-sm">
-          <span class="block text-xs font-bold uppercase tracking-wider text-[#384c3d]">当前读者</span>
-          <strong class="mt-0.5 block truncate text-sm font-bold text-[#142217]" :title="userName">{{ userName }}</strong>
+      <div class="sidebar-footer flex flex-col gap-4 border-t border-emerald-500/10 pt-4">
+        <div class="sidebar-user-card rounded-xl border border-emerald-500/10 bg-white p-3.5 shadow-sm">
+          <span class="block text-[10px] font-extrabold uppercase tracking-wider text-[#4a5c50]">当前读者</span>
+          <strong class="mt-0.5 block truncate text-sm font-bold text-[#0f1e14]" :title="userName">{{ userName }}</strong>
         </div>
         <Button variant="outline" class="sidebar-logout w-full text-red-700 hover:bg-red-50 hover:text-red-800" aria-label="退出登录" @click="logout"><LogOut data-icon="inline-start" /><span class="sidebar-logout-label">退出登录</span></Button>
       </div>

@@ -988,6 +988,10 @@ func renderFitzPageHTML(bookBytes []byte, pageNumber int, ext string) (string, e
 }
 
 func decorateReaderPageHTML(htmlStr string) string {
+	// MuPDF/fitz HTML places each line in absolutely-positioned <p> boxes. Native
+	// browser selection maps empty gutters/margins to the wrong earlier text run.
+	// We (1) make only line boxes selectable, (2) expand line hit targets to fill
+	// gutters, and (3) re-anchor the selection focus to the nearest text while dragging.
 	injections := `
 <style>
 /* Clean up html body for iframe rendering */
@@ -996,16 +1000,104 @@ body {
 	padding: 0;
 	overflow: hidden;
 	background-color: transparent !important;
+	-webkit-user-select: none;
+	user-select: none;
 }
 div[id^="page"] {
 	transform-origin: top left;
 	margin: 0 !important;
 	box-shadow: none !important;
+	-webkit-user-select: none;
+	user-select: none;
+}
+/* Only real text runs participate in selection; empty page chrome cannot retarget it. */
+div[id^="page"] p {
+	-webkit-user-select: text;
+	user-select: text;
+	box-sizing: border-box;
 }
 </style>
 <script>
+function pageRoot() {
+	return document.querySelector('div[id^="page"]');
+}
+
+function expandLineHitTargets() {
+	var page = pageRoot();
+	if (!page) return;
+	var widthStr = page.style.width || '';
+	var heightStr = page.style.height || '';
+	var pageW = parseFloat(widthStr);
+	var pageH = parseFloat(heightStr);
+	if (!pageW) return;
+	var unit = widthStr.indexOf('px') !== -1 ? 'px' : 'pt';
+	// Keep original geometry once so repeated resize() calls do not compound padding.
+	if (!page.getAttribute('data-hit-expanded')) {
+		page.setAttribute('data-hit-expanded', '1');
+		var seed = page.querySelectorAll('p');
+		for (var s = 0; s < seed.length; s++) {
+			var sp = seed[s];
+			sp.setAttribute('data-orig-top', sp.style.top || '0');
+			sp.setAttribute('data-orig-left', sp.style.left || '0');
+			sp.setAttribute('data-orig-lh', sp.style.lineHeight || sp.style.getPropertyValue('line-height') || '12pt');
+		}
+	}
+	var lines = Array.prototype.slice.call(page.querySelectorAll('p'));
+	if (!lines.length) return;
+	lines.sort(function (a, b) {
+		var dy = (parseFloat(a.getAttribute('data-orig-top')) || 0) - (parseFloat(b.getAttribute('data-orig-top')) || 0);
+		if (dy !== 0) return dy;
+		return (parseFloat(a.getAttribute('data-orig-left')) || 0) - (parseFloat(b.getAttribute('data-orig-left')) || 0);
+	});
+	// Build distinct visual rows so same-top runs share one vertical band.
+	var rows = [];
+	var i, top, row;
+	for (i = 0; i < lines.length; i++) {
+		top = parseFloat(lines[i].getAttribute('data-orig-top')) || 0;
+		if (!rows.length || top > rows[rows.length - 1].top + 0.5) {
+			rows.push({ top: top, items: [lines[i]] });
+		} else {
+			rows[rows.length - 1].items.push(lines[i]);
+		}
+	}
+	for (i = 0; i < rows.length; i++) {
+		row = rows[i];
+		var bandStart = i === 0 ? 0 : (rows[i - 1].top + row.top) / 2;
+		var bandEnd;
+		if (i + 1 < rows.length) {
+			bandEnd = (row.top + rows[i + 1].top) / 2;
+		} else if (pageH && pageH > row.top) {
+			// Last row claims the entire bottom margin down to the page edge.
+			bandEnd = pageH;
+		} else {
+			var lhFallback = parseFloat(row.items[0].getAttribute('data-orig-lh')) || 12;
+			bandEnd = row.top + lhFallback * 1.5;
+		}
+		if (bandEnd <= bandStart) bandEnd = bandStart + 1;
+		var k, p, left, origTop, padTop, padLeft;
+		for (k = 0; k < row.items.length; k++) {
+			p = row.items[k];
+			origTop = parseFloat(p.getAttribute('data-orig-top')) || 0;
+			left = parseFloat(p.getAttribute('data-orig-left')) || 0;
+			padTop = Math.max(0, origTop - bandStart);
+			padLeft = Math.max(0, left);
+			// Cover full page width and the row's vertical band; padding keeps glyphs put.
+			p.style.left = '0' + unit;
+			p.style.top = bandStart + unit;
+			p.style.width = pageW + unit;
+			p.style.height = (bandEnd - bandStart) + unit;
+			p.style.paddingLeft = padLeft + unit;
+			p.style.paddingTop = padTop + unit;
+			p.style.paddingRight = '0';
+			p.style.paddingBottom = '0';
+			p.style.margin = '0';
+			p.style.boxSizing = 'border-box';
+		}
+	}
+}
+
 function resize() {
-	var page = document.querySelector('div[id^="page"]');
+	var page = pageRoot();
 	if (!page) return;
 	var width = window.innerWidth;
 	var widthStr = page.style.width;
@@ -1026,10 +1118,236 @@ function resize() {
 	var computedHeight = pageHeight * scale;
 	document.body.style.height = computedHeight + 'px';
 	window.parent.postMessage({ type: 'ebook-reader-page-height', height: computedHeight }, '*');
+	expandLineHitTargets();
 }
 window.addEventListener('resize', resize);
 window.addEventListener('DOMContentLoaded', resize);
 setTimeout(resize, 0);
+
+(function installSelectionStabilizer() {
+	var selecting = false;
+	var anchorNode = null;
+	var anchorOffset = 0;
+	var lastX = 0;
+	var lastY = 0;
+	var correcting = false;
+	var raf = 0;
+
+	function caretRangeAt(x, y) {
+		if (document.caretRangeFromPoint) {
+			try { return document.caretRangeFromPoint(x, y); } catch (e) {}
+		}
+		if (document.caretPositionFromPoint) {
+			var pos = document.caretPositionFromPoint(x, y);
+			if (!pos || !pos.offsetNode) return null;
+			var r = document.createRange();
+			r.setStart(pos.offsetNode, pos.offset);
+			r.collapse(true);
+			return r;
+		}
+		return null;
+	}
+
+	function pointNearRange(range, x, y, pad) {
+		if (!range) return false;
+		var rects = range.getClientRects();
+		var i, rect, dx, dy;
+		if (rects && rects.length) {
+			for (i = 0; i < rects.length; i++) {
+				rect = rects[i];
+				if (rect.width === 0 && rect.height === 0) continue;
+				dx = 0;
+				dy = 0;
+				if (x < rect.left) dx = rect.left - x;
+				else if (x > rect.right) dx = x - rect.right;
+				if (y < rect.top) dy = rect.top - y;
+				else if (y > rect.bottom) dy = y - rect.bottom;
+				if (dx <= pad && dy <= pad) return true;
+			}
+			return false;
+		}
+		// Collapsed carets often have empty client rects; use the text parent box only
+		// as a weak signal, with a tighter pad, to avoid accepting far-away jumps.
+		var node = range.startContainer;
+		if (node && node.nodeType === 3) node = node.parentElement;
+		if (!node || !node.getBoundingClientRect) return false;
+		rect = node.getBoundingClientRect();
+		if (!rect) return false;
+		dx = 0;
+		dy = 0;
+		if (x < rect.left) dx = rect.left - x;
+		else if (x > rect.right) dx = x - rect.right;
+		if (y < rect.top) dy = rect.top - y;
+		else if (y > rect.bottom) dy = y - rect.bottom;
+		return dx <= pad && dy <= pad;
+	}
+
+	function offsetAtX(textNode, x, len) {
+		var lo = 0;
+		var hi = len;
+		while (lo < hi) {
+			var mid = (lo + hi) >> 1;
+			var probe = document.createRange();
+			probe.setStart(textNode, mid);
+			probe.setEnd(textNode, Math.min(mid + 1, len));
+			var rect = probe.getBoundingClientRect();
+			if (!rect || (rect.width === 0 && rect.height === 0)) {
+				if (mid < hi) lo = mid + 1;
+				else break;
+				continue;
+			}
+			if (rect.left + rect.width / 2 < x) lo = mid + 1;
+			else hi = mid;
+		}
+		return lo;
+	}
+
+	function nearestTextRange(x, y) {
+		var root = pageRoot();
+		if (!root) return null;
+		var walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT, {
+			acceptNode: function (n) {
+				return n.nodeValue && n.nodeValue.length
+					? NodeFilter.FILTER_ACCEPT
+					: NodeFilter.FILTER_REJECT;
+			}
+		});
+		var bestNode = null;
+		var bestOffset = 0;
+		var bestScore = Infinity;
+		var node;
+		while ((node = walker.nextNode())) {
+			var full = document.createRange();
+			full.selectNodeContents(node);
+			var rects = full.getClientRects();
+			if (!rects || !rects.length) continue;
+			var len = node.nodeValue.length;
+			var i, rect, dx, dy, score, onLine;
+			for (i = 0; i < rects.length; i++) {
+				rect = rects[i];
+				if (rect.width === 0 && rect.height === 0) continue;
+				dx = 0;
+				dy = 0;
+				if (x < rect.left) dx = rect.left - x;
+				else if (x > rect.right) dx = x - rect.right;
+				if (y < rect.top) dy = rect.top - y;
+				else if (y > rect.bottom) dy = y - rect.bottom;
+				onLine = y >= rect.top - 3 && y <= rect.bottom + 3;
+				// Prefer the same visual line heavily so gutter drags stay on-line.
+				score = onLine ? dx * dx : (dy * dy * 100 + dx * dx);
+				if (score < bestScore) {
+					bestScore = score;
+					bestNode = node;
+					if (x <= rect.left) bestOffset = 0;
+					else if (x >= rect.right) bestOffset = len;
+					else bestOffset = offsetAtX(node, x, len);
+				}
+			}
+		}
+		if (!bestNode) return null;
+		var out = document.createRange();
+		out.setStart(bestNode, Math.min(bestOffset, bestNode.nodeValue.length));
+		out.collapse(true);
+		return out;
+	}
+
+	function clampToPage(x, y) {
+		var root = pageRoot();
+		if (!root) return { x: x, y: y };
+		var rect = root.getBoundingClientRect();
+		if (!rect || !rect.width || !rect.height) return { x: x, y: y };
+		// Keep the probe inside the scaled page box (esp. bottom/right edges).
+		var cx = Math.min(rect.right - 1, Math.max(rect.left + 1, x));
+		var cy = Math.min(rect.bottom - 1, Math.max(rect.top + 1, y));
+		return { x: cx, y: cy };
+	}
+
+	function resolveFocus(x, y) {
+		var pt = clampToPage(x, y);
+		x = pt.x;
+		y = pt.y;
+		var native = caretRangeAt(x, y);
+		// Tight pad: native caret over empty space often "snaps" to distant runs.
+		if (native && pointNearRange(native, x, y, 18)) return native;
+		return nearestTextRange(x, y) || native;
+	}
+
+	function applySelection(focusRange) {
+		if (!anchorNode || !focusRange || !focusRange.startContainer) return;
+		var sel = window.getSelection();
+		if (!sel) return;
+		try {
+			var a = document.createRange();
+			a.setStart(anchorNode, anchorOffset);
+			a.collapse(true);
+			var range = document.createRange();
+			if (a.compareBoundaryPoints(Range.START_TO_START, focusRange) <= 0) {
+				range.setStart(anchorNode, anchorOffset);
+				range.setEnd(focusRange.startContainer, focusRange.startOffset);
+			} else {
+				range.setStart(focusRange.startContainer, focusRange.startOffset);
+				range.setEnd(anchorNode, anchorOffset);
+			}
+			correcting = true;
+			sel.removeAllRanges();
+			sel.addRange(range);
+		} catch (e) {
+		} finally {
+			correcting = false;
+		}
+	}
+
+	function scheduleCorrect() {
+		if (raf) return;
+		raf = window.requestAnimationFrame(function () {
+			raf = 0;
+			if (!selecting || !anchorNode) return;
+			var focus = resolveFocus(lastX, lastY);
+			if (focus) applySelection(focus);
+		});
+	}
+
+	function onPointerDown(e) {
+		if (e.button !== 0) return;
+		selecting = true;
+		lastX = e.clientX;
+		lastY = e.clientY;
+		var focus = resolveFocus(e.clientX, e.clientY);
+		if (focus) {
+			anchorNode = focus.startContainer;
+			anchorOffset = focus.startOffset;
+		} else {
+			anchorNode = null;
+		}
+	}
+
+	function onPointerMove(e) {
+		if (!selecting || !anchorNode) return;
+		lastX = e.clientX;
+		lastY = e.clientY;
+		// Keep correcting after the browser's own selection update in this frame.
+		scheduleCorrect();
+	}
+
+	function onPointerUp() {
+		selecting = false;
+		if (raf) {
+			window.cancelAnimationFrame(raf);
+			raf = 0;
+		}
+	}
+
+	function onSelectionChange() {
+		if (correcting || !selecting || !anchorNode) return;
+		scheduleCorrect();
+	}
+
+	document.addEventListener('mousedown', onPointerDown, true);
+	document.addEventListener('mousemove', onPointerMove, true);
+	document.addEventListener('mouseup', onPointerUp, true);
+	document.addEventListener('selectionchange', onSelectionChange);
+	window.addEventListener('blur', onPointerUp);
+})();
 </script>
 `
 
@@ -1265,6 +1583,7 @@ func registerRoutes(app core.App, svc *pdfService) {
 			if err != nil {
 				return re.InternalServerError(err.Error(), nil)
 			}
+			re.Response.Header().Set("Cache-Control", "no-store")
 			return re.Blob(http.StatusOK, "text/html; charset=utf-8", []byte(decorateReaderPageHTML(htmlStr)))
 		})
 
