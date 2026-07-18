@@ -48,12 +48,12 @@ async function submit() {
 </script>
 
 <template>
-  <section class="max-w-2xl mx-auto py-4">
+  <section class="max-w-2xl mx-auto py-2">
     <div class="page-header">
       <div>
-        <p class="text-xs font-extrabold uppercase tracking-widest text-[#0f7643]">Upload</p>
-        <h1 class="text-3xl font-black text-[#0f1e14] tracking-tight">上传书籍</h1>
-        <p class="mt-1 text-sm text-[#4a5c50]">支持 PDF、EPUB、MOBI。上传后即刻在后台进行解析，完成后自动生成精美图册。</p>
+        <p class="text-xs font-extrabold uppercase tracking-widest text-[#0f7643] hidden sm:block">Upload</p>
+        <h1 class="text-xl sm:text-3xl font-black text-[#0f1e14] tracking-tight">上传书籍</h1>
+        <p class="mt-1 text-sm text-[#4a5c50] hidden sm:block">支持 PDF、EPUB、MOBI。上传后即刻在后台进行解析，完成后自动生成精美图册。</p>
       </div>
     </div>
     

@@ -31,9 +31,9 @@ onMounted(load)
   <section class="max-w-5xl mx-auto py-2">
     <div class="page-header">
       <div>
-        <p class="text-xs font-extrabold uppercase tracking-widest text-[#0f7643]">Summary</p>
-        <h1 class="text-3xl font-black text-[#0f1e14] tracking-tight">阅读记录汇总</h1>
-        <p class="mt-1 text-sm text-[#4a5c50]">追踪并统计您的阅读偏好、时长以及每本书的阅读进度。</p>
+        <p class="text-xs font-extrabold uppercase tracking-widest text-[#0f7643] hidden sm:block">Summary</p>
+        <h1 class="text-xl sm:text-3xl font-black text-[#0f1e14] tracking-tight">阅读记录汇总</h1>
+        <p class="mt-1 text-sm text-[#4a5c50] hidden sm:block">追踪并统计您的阅读偏好、时长以及每本书的阅读进度。</p>
       </div>
     </div>
 
@@ -48,10 +48,10 @@ onMounted(load)
 
     <template v-else>
       <!-- Stats Dashboard Grid -->
-      <div class="grid gap-4 md:grid-cols-3">
-        <div class="library-card rounded-2xl p-5 flex items-center gap-4">
-          <div class="p-3.5 rounded-xl bg-emerald-50 text-[#0f7643] border border-emerald-500/5">
-            <BookOpen class="size-6" />
+      <div class="grid gap-4 grid-cols-1 sm:grid-cols-3">
+        <div class="library-card rounded-2xl p-4 sm:p-5 flex items-center gap-4">
+          <div class="p-3 rounded-xl bg-emerald-50 text-[#0f7643] border border-emerald-500/5 shrink-0">
+            <BookOpen class="size-5 sm:size-6" />
           </div>
           <div>
             <p class="text-xs font-extrabold uppercase tracking-wider text-[#4a5c50]">阅读书籍</p>
@@ -59,9 +59,9 @@ onMounted(load)
           </div>
         </div>
 
-        <div class="library-card rounded-2xl p-5 flex items-center gap-4">
-          <div class="p-3.5 rounded-xl bg-emerald-50 text-[#0f7643] border border-emerald-500/5">
-            <Clock class="size-6" />
+        <div class="library-card rounded-2xl p-4 sm:p-5 flex items-center gap-4">
+          <div class="p-3 rounded-xl bg-emerald-50 text-[#0f7643] border border-emerald-500/5 shrink-0">
+            <Clock class="size-5 sm:size-6" />
           </div>
           <div>
             <p class="text-xs font-extrabold uppercase tracking-wider text-[#4a5c50]">累计阅读时长</p>
@@ -69,9 +69,9 @@ onMounted(load)
           </div>
         </div>
 
-        <div class="library-card rounded-2xl p-5 flex items-center gap-4">
-          <div class="p-3.5 rounded-xl bg-emerald-50 text-[#0f7643] border border-emerald-500/5">
-            <TrendingUp class="size-6" />
+        <div class="library-card rounded-2xl p-4 sm:p-5 flex items-center gap-4">
+          <div class="p-3 rounded-xl bg-emerald-50 text-[#0f7643] border border-emerald-500/5 shrink-0">
+            <TrendingUp class="size-5 sm:size-6" />
           </div>
           <div>
             <p class="text-xs font-extrabold uppercase tracking-wider text-[#4a5c50]">平均阅读进度</p>
@@ -83,7 +83,7 @@ onMounted(load)
       </div>
 
       <!-- Recent Records Section -->
-      <div class="mt-6 library-card rounded-2xl p-5">
+      <div class="mt-6 library-card rounded-2xl p-4 sm:p-5">
         <div class="flex items-center gap-2 mb-4 pb-2 border-b border-emerald-500/5">
           <History class="size-5 text-[#0f7643] opacity-80" />
           <h2 class="text-base font-extrabold text-[#0f1e14]">最近阅读记录</h2>

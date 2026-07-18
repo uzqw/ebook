@@ -21,7 +21,9 @@ watch(() => route.fullPath, async () => {
 <template>
   <div class="shell" :class="{ 'shell--sidebar-collapsed': sidebarCollapsed }">
     <a href="#main-content" class="skip-link">跳到主要内容</a>
-    <aside class="sidebar flex flex-col justify-between">
+    
+    <!-- Desktop Sidebar (Hidden on mobile) -->
+    <aside class="sidebar flex flex-col justify-between hidden md:flex">
       <div class="sidebar-top">
         <div class="sidebar-brand flex items-start justify-between gap-3">
           <div class="sidebar-brand__copy min-w-0">
@@ -51,7 +53,38 @@ watch(() => route.fullPath, async () => {
       </div>
     </aside>
 
-    <main id="main-content" ref="mainEl" class="content-area" tabindex="-1">
+    <!-- Mobile Top Sticky Header (Hidden on desktop) -->
+    <header class="mobile-header md:hidden flex items-center justify-between px-4 py-3 bg-[#fbfcfb] border-b border-emerald-500/5 sticky top-0 z-40">
+      <h1 class="text-base font-black text-[#0f1e14]">青简书房</h1>
+      <div class="flex items-center gap-2">
+        <span class="text-xs font-semibold text-[#4a5c50] truncate max-w-28" :title="userName">{{ userName }}</span>
+        <Button variant="ghost" size="sm" class="text-red-700 hover:bg-red-50 p-2 h-8 w-8 rounded-lg" aria-label="退出登录" @click="logout">
+          <LogOut class="size-4" />
+        </Button>
+      </div>
+    </header>
+
+    <!-- Mobile Bottom Fixed Navigation (Hidden on desktop) -->
+    <nav class="mobile-bottom-nav md:hidden fixed bottom-0 left-0 right-0 h-14 bg-white border-t border-emerald-500/5 flex items-center justify-around z-40 px-2 pb-safe shadow-[0_-4px_12px_rgba(0,0,0,0.03)]">
+      <RouterLink to="/books" class="mobile-nav-link flex flex-col items-center justify-center text-[#4a5c50]" active-class="mobile-nav-link-active">
+        <Library class="size-5" />
+        <span class="text-[9px] mt-0.5 font-bold">书架</span>
+      </RouterLink>
+      <RouterLink to="/books/upload" class="mobile-nav-link flex flex-col items-center justify-center text-[#4a5c50]" active-class="mobile-nav-link-active">
+        <FileUp class="size-5" />
+        <span class="text-[9px] mt-0.5 font-bold">上传</span>
+      </RouterLink>
+      <RouterLink to="/notes" class="mobile-nav-link flex flex-col items-center justify-center text-[#4a5c50]" active-class="mobile-nav-link-active">
+        <NotebookPen class="size-5" />
+        <span class="text-[9px] mt-0.5 font-bold">笔记</span>
+      </RouterLink>
+      <RouterLink to="/summary" class="mobile-nav-link flex flex-col items-center justify-center text-[#4a5c50]" active-class="mobile-nav-link-active">
+        <ChartNoAxesCombined class="size-5" />
+        <span class="text-[9px] mt-0.5 font-bold">汇总</span>
+      </RouterLink>
+    </nav>
+
+    <main id="main-content" ref="mainEl" class="content-area pb-20 md:pb-8" tabindex="-1">
       <RouterView />
     </main>
   </div>

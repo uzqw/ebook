@@ -101,15 +101,15 @@ onMounted(load)
 
 <template>
   <section>
-    <div class="page-header">
+    <div class="page-header items-center sm:items-start">
       <div>
-        <p class="text-xs font-extrabold uppercase tracking-widest text-[#0f7643]">Library</p>
-        <h1 class="text-3xl font-black text-[#0f1e14] tracking-tight">书籍管理</h1>
-        <p class="mt-1 text-sm text-[#4a5c50]">管理并阅读您的电子书，上传后自动解析页数、文本，支持多端阅读进度同步。</p>
+        <p class="text-xs font-extrabold uppercase tracking-widest text-[#0f7643] hidden sm:block">Library</p>
+        <h1 class="text-xl sm:text-3xl font-black text-[#0f1e14] tracking-tight">书籍管理</h1>
+        <p class="mt-1 text-sm text-[#4a5c50] hidden sm:block">管理并阅读您的电子书，上传后自动解析页数、文本，支持多端阅读进度同步。</p>
       </div>
       <div class="flex gap-2">
-        <Button variant="outline" @click="load" class="border-emerald-500/10 hover:bg-emerald-50 text-[#0f7643]"><RefreshCw data-icon="inline-start" />刷新</Button>
-        <RouterLink to="/books/upload"><Button class="bg-[#0f7643] hover:bg-[#064e2b]"><FileUp data-icon="inline-start" />上传书籍</Button></RouterLink>
+        <Button variant="outline" @click="load" class="border-emerald-500/10 hover:bg-emerald-50 text-[#0f7643] p-2 h-9 w-9 sm:h-11 sm:w-auto sm:px-4 rounded-lg sm:rounded-xl"><RefreshCw class="size-4" /><span class="hidden sm:inline">刷新</span></Button>
+        <RouterLink to="/books/upload" class="hidden sm:inline-flex"><Button class="bg-[#0f7643] hover:bg-[#064e2b]"><FileUp data-icon="inline-start" />上传书籍</Button></RouterLink>
       </div>
     </div>
 
@@ -158,9 +158,9 @@ onMounted(load)
     </div>
     
     <div v-else class="grid gap-5 md:grid-cols-1 xl:grid-cols-2">
-      <article v-for="book in filteredBooks" :key="book.id" class="library-card rounded-2xl p-4 flex gap-4 items-stretch">
+      <article v-for="book in filteredBooks" :key="book.id" class="library-card rounded-2xl p-4 flex flex-col sm:flex-row gap-4 items-center sm:items-stretch">
         <!-- Left: Book Cover 3D -->
-        <div class="book-cover-wrapper">
+        <div class="book-cover-wrapper mx-auto sm:mx-0">
           <div class="book-cover-3d" :style="getBookCoverStyle(book.title)">
             <div class="book-cover-title">{{ cleanCoverTitle(book.title) }}</div>
             <div class="book-cover-author">{{ book.author || '未知作者' }}</div>
@@ -168,7 +168,7 @@ onMounted(load)
         </div>
         
         <!-- Right: Content details -->
-        <div class="flex flex-col flex-1 min-w-0">
+        <div class="flex flex-col flex-1 min-w-0 w-full">
           <div class="flex items-start justify-between gap-2">
             <div class="min-w-0">
               <h2 class="line-clamp-2 text-base font-extrabold text-[#0f1e14] hover:text-[#0f7643] transition-colors leading-snug" :title="book.title">

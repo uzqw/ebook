@@ -33,9 +33,9 @@ onMounted(load)
   <section class="max-w-5xl mx-auto py-2">
     <div class="page-header">
       <div>
-        <p class="text-xs font-extrabold uppercase tracking-widest text-[#0f7643]">Notes</p>
-        <h1 class="text-3xl font-black text-[#0f1e14] tracking-tight">笔记管理</h1>
-        <p class="mt-1 text-sm text-[#4a5c50]">按书籍汇总您在阅读中记录的页面重点与想法心得。</p>
+        <p class="text-xs font-extrabold uppercase tracking-widest text-[#0f7643] hidden sm:block">Notes</p>
+        <h1 class="text-xl sm:text-3xl font-black text-[#0f1e14] tracking-tight">笔记管理</h1>
+        <p class="mt-1 text-sm text-[#4a5c50] hidden sm:block">按书籍汇总您在阅读中记录的页面重点与想法心得。</p>
       </div>
     </div>
 
@@ -49,7 +49,7 @@ onMounted(load)
     </div>
 
     <div v-else class="grid gap-6">
-      <article v-for="book in books" :key="book.id" class="library-card rounded-2xl p-5 flex flex-col gap-3">
+      <article v-for="book in books" :key="book.id" class="library-card rounded-2xl p-4 sm:p-5 flex flex-col gap-3">
         <div class="flex items-center gap-2.5 pb-2 border-b border-emerald-500/5">
           <NotebookPen class="size-5 text-[#0f7643] opacity-80" />
           <h2 class="text-base font-extrabold text-[#0f1e14] truncate">{{ book.title }}</h2>
@@ -63,7 +63,7 @@ onMounted(load)
         </div>
 
         <div v-else class="grid gap-3 mt-1 grid-cols-1 md:grid-cols-2">
-          <div v-for="note in notesByBook[book.id]" :key="note.id" class="rounded-xl border border-emerald-500/5 bg-[#fbfcfb] hover:bg-emerald-50/5 p-4 text-sm flex flex-col justify-between gap-2.5 transition-colors">
+          <div v-for="note in notesByBook[book.id]" :key="note.id" class="rounded-xl border border-emerald-500/5 bg-[#fbfcfb] hover:bg-emerald-50/5 p-3.5 text-sm flex flex-col justify-between gap-2.5 transition-colors">
             <p class="whitespace-pre-wrap text-[#0f1e14] leading-relaxed font-medium">{{ note.content }}</p>
             
             <div class="flex justify-end pt-2 border-t border-dashed border-emerald-500/5">

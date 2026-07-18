@@ -59,7 +59,7 @@ async function applyCachedFontToFrame() {
   doc.addEventListener('mousemove', onFrameMousemove)
   doc.addEventListener('pointerdown', onGlobalPointerDown)
   doc.addEventListener('pointerup', onGlobalPointerUp)
-  doc.addEventListener('click', onFrameClick)
+  doc.addEventListener('keydown', onGlobalKeydown)
   try {
     await installCachedCjkFont(doc, true)
     window.setTimeout(() => frame.contentWindow?.dispatchEvent(new Event('resize')), 0)
@@ -119,41 +119,30 @@ function initialPage() {
 let mouseDown = false
 function onGlobalPointerDown() { mouseDown = true }
 function onGlobalPointerUp() { mouseDown = false }
-function nearChromeEdge(clientY: number, viewportHeight: number) {
-  return clientY < 72 || clientY > viewportHeight - 96
+function updateChromeVisibility(clientY: number) {
+  if (activeSidePanel.value) {
+    chromeVisible.value = true
+    return
+  }
+  const viewportHeight = window.innerHeight
+  if (clientY < 72 || clientY > viewportHeight - 96) {
+    chromeVisible.value = true
+  } else {
+    chromeVisible.value = false
+  }
 }
 function onSectionMousemove(event: MouseEvent) {
-  if (nearChromeEdge(event.clientY, window.innerHeight)) showChrome()
+  updateChromeVisibility(event.clientY)
 }
 function onFrameMousemove(event: MouseEvent) {
-  const frameWindow = readerFrame.value?.contentWindow
-  if (frameWindow && nearChromeEdge(event.clientY, frameWindow.innerHeight)) showChrome()
+  const rect = readerFrame.value?.getBoundingClientRect()
+  if (!rect) return
+  const clientY = rect.top + event.clientY
+  updateChromeVisibility(clientY)
 }
-function onFrameClick(event: MouseEvent) {
-  const doc = readerFrame.value?.contentDocument
-  if (!doc) return
-  const selection = doc.getSelection()
-  if (selection && !selection.isCollapsed) return
-  if (event.target !== doc.body && event.target !== doc.documentElement) return
-  toggleChrome()
-}
-function showChrome() {
-  if (mouseDown) return
-  chromeVisible.value = true
-  if (chromeTimer.value !== null) window.clearTimeout(chromeTimer.value)
-  chromeTimer.value = window.setTimeout(() => {
-    if (!activeSidePanel.value) chromeVisible.value = false
-  }, 2500)
-}
-function toggleChrome() {
-  if (chromeVisible.value) {
+function onWindowMouseLeave() {
+  if (!activeSidePanel.value) {
     chromeVisible.value = false
-    if (chromeTimer.value !== null) {
-      window.clearTimeout(chromeTimer.value)
-      chromeTimer.value = null
-    }
-  } else {
-    showChrome()
   }
 }
 
@@ -226,11 +215,9 @@ function onGlobalKeydown(event: KeyboardEvent) {
   if (isEditableTarget(event.target)) return
   if (event.key === 'ArrowLeft' || event.key === 'PageUp') {
     event.preventDefault()
-    showChrome()
     prev()
   } else if (event.key === 'ArrowRight' || event.key === 'PageDown' || event.key === ' ') {
     event.preventDefault()
-    showChrome()
     next()
   }
 }
@@ -238,10 +225,18 @@ function toggleSidePanel(panel: 'index' | 'bookmarks' | 'notes') { activeSidePan
 function resetZoom() { zoom.value = 1 }
 function zoomIn() { zoom.value = Math.min(4, Number((zoom.value + 0.25).toFixed(2))) }
 function zoomOut() { zoom.value = Math.max(1, Number((zoom.value - 0.25).toFixed(2))) }
-function onPageClick() {
-  const selection = window.getSelection()
-  if (selection && !selection.isCollapsed) return
-  toggleChrome()
+function onSectionClick(event: MouseEvent) {
+  const target = event.target as HTMLElement
+  if (target.closest('.reader-page') || target.closest('.reader-chrome') || target.closest('aside')) {
+    return
+  }
+  const clickX = event.clientX
+  const middleX = window.innerWidth / 2
+  if (clickX < middleX) {
+    prev()
+  } else {
+    next()
+  }
 }
 async function saveProgress() {
   if (!book.value) return
@@ -302,26 +297,19 @@ watch(zoom, (value) => {
 watch(activeSidePanel, (panel) => {
   if (panel) {
     chromeVisible.value = true
-    if (chromeTimer.value !== null) {
-      window.clearTimeout(chromeTimer.value)
-      chromeTimer.value = null
-    }
-  } else {
-    showChrome()
   }
 })
 onMounted(() => {
   void load()
-  showChrome()
   window.addEventListener('message', handleMessage)
   window.addEventListener('keydown', onGlobalKeydown)
   window.addEventListener('pointerdown', onGlobalPointerDown)
   window.addEventListener('pointerup', onGlobalPointerUp)
+  window.addEventListener('mouseleave', onWindowMouseLeave)
 })
 onBeforeUnmount(() => {
   if (parsePollTimer.value !== null) window.clearInterval(parsePollTimer.value)
   if (saveTimer.value !== null) window.clearTimeout(saveTimer.value)
-  if (chromeTimer.value !== null) window.clearTimeout(chromeTimer.value)
   if (saveQueued.value) {
     void saveProgress().catch((err) => {
       error.value = err instanceof Error ? err.message : '保存阅读进度失败'
@@ -331,11 +319,12 @@ onBeforeUnmount(() => {
   window.removeEventListener('keydown', onGlobalKeydown)
   window.removeEventListener('pointerdown', onGlobalPointerDown)
   window.removeEventListener('pointerup', onGlobalPointerUp)
+  window.removeEventListener('mouseleave', onWindowMouseLeave)
 })
 </script>
 
 <template>
-  <section class="min-h-dvh select-none" @mousemove="onSectionMousemove">
+  <section class="min-h-dvh select-none" @mousemove="onSectionMousemove" @click="onSectionClick">
     <div v-if="error" role="alert" class="fixed left-1/2 top-4 z-[60] flex w-[calc(100%-2rem)] max-w-lg -translate-x-1/2 items-center justify-between gap-2 rounded-xl border border-red-200 bg-red-50 p-3 text-sm font-semibold text-red-700 shadow-lg">
       <span>{{ error }}</span>
       <Button size="sm" variant="outline" @click="load">重试</Button>
@@ -374,7 +363,6 @@ onBeforeUnmount(() => {
         v-if="canRenderPage"
         class="reader-zoom-stage"
         :style="{ height: `${iframeHeight * zoom}px` }"
-        @click="onPageClick"
       >
         <div class="reader-page reader-image-frame" :style="{ transform: `scale(${zoom})`, transformOrigin: 'top center' }">
           <iframe
