@@ -53,7 +53,6 @@ WORKDIR /app
 ENV POCKETBASE_HOST=0.0.0.0 \
     POCKETBASE_PORT=18093 \
     POCKETBASE_DATA_DIR=/app/pb_data \
-    POCKETBASE_HOOKS_DIR=/app/pb_hooks \
     PUBLIC_DIR=/app/dist \
     TMPDIR=/app/pb_data/tmp \
     PB_BIN=/usr/local/bin/ebook-pocketbase \
@@ -61,7 +60,6 @@ ENV POCKETBASE_HOST=0.0.0.0 \
 
 COPY --from=frontend-builder /src/dist/ /app/dist/
 COPY --from=backend-builder /src/ebook-pocketbase /usr/local/bin/ebook-pocketbase
-COPY pb_hooks/ /app/pb_hooks/
 COPY fonts/ /app/fonts/
 COPY scripts/docker-entrypoint.sh /usr/local/bin/docker-entrypoint.sh
 RUN chmod 0755 /usr/local/bin/docker-entrypoint.sh \
