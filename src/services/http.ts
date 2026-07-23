@@ -20,10 +20,19 @@ const HEARTBEAT_INTERVAL_MS = 30_000
 // pages, file uploads. These get a generous timeout and no short fuse.
 const HEAVY_PATHS = ['/api/fonts/', '/pages/']
 
-// Safe to re-send: reading twice or writing the same value twice is harmless.
-const IDEMPOTENT_METHODS = new Set(['GET', 'HEAD', 'PUT', 'PATCH', 'DELETE'])
+// Requests that are safe to re-send without changing server state. PATCH is
+// intentionally excluded because an incremental/append patch is not guaranteed
+// to be idempotent; callers that know their PATCH is safe can retry explicitly.
+const IDEMPOTENT_METHODS = new Set(['GET', 'HEAD', 'PUT', 'DELETE'])
 
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms))
+
+function extractRequestInfo(input: RequestInfo | URL, init?: RequestInit) {
+  const requestInput = input instanceof Request ? input : undefined
+  const method = (init?.method ?? requestInput?.method ?? 'GET').toUpperCase()
+  const callerSignal = init?.signal ?? requestInput?.signal
+  return { method, callerSignal }
+}
 
 export function installResilientFetch(baseUrl: string) {
   const originalFetch = window.fetch.bind(window)
@@ -37,15 +46,15 @@ export function installResilientFetch(baseUrl: string) {
 
   async function request(input: RequestInfo | URL, init: RequestInit | undefined, attempt: number): Promise<Response> {
     const url = resolveUrl(input)
-    const method = (init?.method ?? 'GET').toUpperCase()
+    const { method, callerSignal } = extractRequestInfo(input, init)
     const timeoutMs = isHeavy(url, init) ? HEAVY_TIMEOUT_MS : LIGHT_TIMEOUT_MS
     const timeoutSignal = AbortSignal.timeout(timeoutMs)
-    const signal = init?.signal ? AbortSignal.any([init.signal, timeoutSignal]) : timeoutSignal
+    const signal = callerSignal ? AbortSignal.any([callerSignal, timeoutSignal]) : timeoutSignal
 
     try {
       return await originalFetch(input, { ...init, signal })
     } catch (error) {
-      const callerAborted = init?.signal?.aborted === true
+      const callerAborted = callerSignal?.aborted === true
       const bodyConsumed = input instanceof Request && input.body !== null
       const canRetry = !callerAborted && !bodyConsumed && attempt < MAX_RETRIES && IDEMPOTENT_METHODS.has(method)
       if (!canRetry) throw error
