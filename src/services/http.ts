@@ -1,10 +1,9 @@
 // Resilient fetch wrapper for API requests.
 //
-// Browsers reuse a single HTTP/2 connection per origin. When that connection
-// dies silently (laptop suspend, WireGuard/NAT state expiring after a long
-// idle), every request written into it black-holes until TCP retransmission
-// gives up (15+ minutes). A short timeout + automatic retry forces a fresh
-// connection and recovers in seconds, invisible to the user.
+// A browser connection can become stale after laptop suspend or a network
+// change. A short timeout plus automatic retry bounds how long in-page API
+// calls wait before making another attempt. Connection establishment remains
+// under browser control, so this mitigates but cannot eliminate network delay.
 //
 // NOTE: this wrapper only protects in-page `fetch()` calls. It cannot help
 // the initial page load, because the browser's connection pool for navigation
@@ -51,8 +50,10 @@ export function installResilientFetch(baseUrl: string) {
       const canRetry = !callerAborted && !bodyConsumed && attempt < MAX_RETRIES && IDEMPOTENT_METHODS.has(method)
       if (!canRetry) throw error
       await sleep(RETRY_DELAY_MS * (attempt + 1))
-      // Avoid serving a stale cached response on retry; force a real network round-trip.
-      const retryInit = { ...init, cache: 'no-store' as RequestCache, signal }
+      // Preserve only the caller's original signal. The combined `signal`
+      // above includes this attempt's timeout and is already aborted after a
+      // timeout; reusing it would make the next attempt fail immediately.
+      const retryInit: RequestInit = { ...init, cache: 'no-store' }
       return request(input, retryInit, attempt + 1)
     }
   }
@@ -62,10 +63,10 @@ export function installResilientFetch(baseUrl: string) {
     return request(input, init, 0)
   }
 
-  // Keep the connection alive: NAT mappings, WireGuard sessions and conntrack
-  // entries all expire silently after idle periods. Any periodic traffic
-  // refreshes that state before it can die, so the failure never happens.
-  // Errors are swallowed — the timeout+retry in request() handles recovery.
+  // Periodic traffic can refresh NAT, WireGuard and conntrack state while the
+  // page is visible, reducing idle expiry. It cannot prevent every stale
+  // connection (especially during suspend), so timeout+retry remains necessary.
+  // Probe errors are swallowed because request() handles recovery attempts.
   // Use cache-busting so a stale 200 from the browser cache does not hide a
   // dead connection.
   const probe = () => {
@@ -76,8 +77,8 @@ export function installResilientFetch(baseUrl: string) {
     if (document.visibilityState === 'visible') probe()
   }, HEARTBEAT_INTERVAL_MS)
 
-  // Back to the tab after suspend/idle: probe now, before the user's next
-  // interaction, so any reconnect happens off the critical path.
+  // Back to the tab after suspend/idle: probe promptly so recovery may begin
+  // before the next API request on the user's critical path.
   document.addEventListener('visibilitychange', () => {
     if (document.visibilityState === 'visible') probe()
   })
