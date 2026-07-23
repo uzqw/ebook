@@ -74,23 +74,65 @@ describe('installResilientFetch', () => {
     expect(signals[0]).not.toBe(signals[1])
   })
 
-  it('inherits method and signal from a Request object', async () => {
-    const controller = new AbortController()
-    let receivedInit: RequestInit | undefined
-
-    mockWindow.fetch = vi.fn(async (_input: RequestInfo | URL, init?: RequestInit) => {
-      receivedInit = init
-      return new Response('{"ok":true}', { status: 200 })
+  it('uses the short timeout for reader page HTML', async () => {
+    let calls = 0
+    mockWindow.fetch = vi.fn((_input: RequestInfo | URL, init?: RequestInit): Promise<Response> => {
+      calls++
+      if (calls === 1) {
+        return new Promise((_resolve, reject) => {
+          init!.signal!.addEventListener('abort', () => reject(init!.signal!.reason), { once: true })
+        })
+      }
+      return Promise.resolve(new Response('<p>page</p>', { status: 200 }))
     })
 
     installResilientFetch(BASE_URL)
 
-    const request = new Request(API_URL, { method: 'DELETE', signal: controller.signal })
-    await mockWindow.fetch(request)
+    const promise = mockWindow.fetch(`${BASE_URL}/api/books/book/pages/1/html`)
+    await vi.advanceTimersByTimeAsync(LIGHT_TIMEOUT_MS + 100)
 
-    expect(receivedInit?.method).toBeUndefined()
-    expect(receivedInit?.signal).toBeDefined()
-    expect((receivedInit?.signal as AbortSignal).aborted).toBe(false)
+    await expect(promise).resolves.toMatchObject({ ok: true })
+    expect(calls).toBe(2)
+  })
+
+  it('inherits a non-idempotent method from a Request object', async () => {
+    let calls = 0
+    mockWindow.fetch = vi.fn(async (): Promise<Response> => {
+      calls++
+      return Promise.reject(new Error('network error'))
+    })
+
+    installResilientFetch(BASE_URL)
+
+    const request = new Request(API_URL, { method: 'POST' })
+    await expect(mockWindow.fetch(request)).rejects.toThrow('network error')
+    expect(calls).toBe(1)
+  })
+
+  it('propagates a Request object caller signal', async () => {
+    const controller = new AbortController()
+    let receivedSignal: AbortSignal | undefined
+    let calls = 0
+
+    mockWindow.fetch = vi.fn((_input: RequestInfo | URL, init?: RequestInit): Promise<Response> => {
+      calls++
+      receivedSignal = init?.signal ?? undefined
+      return new Promise((_resolve, reject) => {
+        receivedSignal?.addEventListener('abort', () => reject(receivedSignal?.reason), { once: true })
+      })
+    })
+
+    installResilientFetch(BASE_URL)
+
+    const request = new Request(API_URL, { signal: controller.signal })
+    const responsePromise = mockWindow.fetch(request)
+    const reason = new DOMException('caller cancelled', 'AbortError')
+    controller.abort(reason)
+
+    expect(receivedSignal?.aborted).toBe(true)
+    expect(receivedSignal?.reason).toBe(reason)
+    await expect(responsePromise).rejects.toBe(reason)
+    expect(calls).toBe(1)
   })
 
   it('does not retry POST requests', async () => {

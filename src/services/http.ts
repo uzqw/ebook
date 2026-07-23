@@ -16,9 +16,10 @@ const MAX_RETRIES = 2
 const RETRY_DELAY_MS = 400
 const HEARTBEAT_INTERVAL_MS = 30_000
 
-// Requests that are legitimately slow: font downloads, server-rendered book
-// pages, file uploads. These get a generous timeout and no short fuse.
-const HEAVY_PATHS = ['/api/fonts/', '/pages/']
+// Requests that are legitimately slow: font downloads and file uploads. These
+// get a generous timeout. Page HTML stays on the short timeout so a dead path
+// is detected and retried promptly instead of waiting 120 seconds.
+const HEAVY_PATHS = ['/api/fonts/']
 
 // Requests that are safe to re-send without changing server state. PATCH is
 // intentionally excluded because an incremental/append patch is not guaranteed
