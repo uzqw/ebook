@@ -8,7 +8,7 @@ Recommended flow:
 
 ```bash
 cp .env.example .env
-task docker-deploy:cicd
+task deploy
 ```
 
 Deployment stores PocketBase data under

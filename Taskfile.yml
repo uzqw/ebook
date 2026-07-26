@@ -25,14 +25,24 @@ tasks:
       - npm run build
       - cd backend && CGO_ENABLED=0 GOOS=linux go build -tags nocgo -o ebook-pocketbase ./cmd/ebook-pocketbase
 
-  docker-deploy:cicd:
+  deploy:
+    deps: [check]
     cmds:
       - |
         data_path="$(./scripts/resolve-data-path.sh)"
         mkdir -p "$data_path/tmp"
+        chmod 0750 "$data_path"
         chmod 1777 "$data_path/tmp"
-        docker rm -f cicd-local-ebook-reader 2>/dev/null || true
-        DOCKER_CONTAINER_NAME=cicd-local-ebook-reader \
-          DOCKER_PB_DATA_PATH="$data_path" \
-          docker-compose -f compose.yaml -f compose.build.yaml \
+        if ! docker network inspect cicd-observability >/dev/null 2>&1; then
+          printf '%s\n' \
+            'DEPENDENCY_MISSING network=cicd-observability run=cicd-setup' >&2
+          exit 3
+        fi
+        DOCKER_PB_DATA_PATH="$data_path" \
+          docker compose -p ebook-reader-uzqw \
+          -f compose.yaml -f compose.build.yaml \
+          -f compose.observability.yaml config --quiet
+        DOCKER_PB_DATA_PATH="$data_path" \
+          docker compose -p ebook-reader-uzqw \
+          -f compose.yaml -f compose.build.yaml \
           -f compose.observability.yaml up -d --build --force-recreate
