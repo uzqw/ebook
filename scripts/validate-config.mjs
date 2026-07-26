@@ -38,6 +38,12 @@ assert(
     JSON.stringify(['compose.yaml', 'compose.build.yaml', 'compose.observability.yaml']),
   'deployment.composeFiles must preserve the validated merge order',
 )
+equal(manifest.deployment?.workflow, '.gitea/workflows/ci.yml', 'deployment.workflow')
+const workflowDocument = parseDocument(
+  readFileSync(path.join(repoRoot, manifest.deployment.workflow), 'utf8'),
+  { uniqueKeys: true },
+)
+assert(workflowDocument.errors.length === 0, 'CI workflow YAML is invalid')
 equal(manifest.network?.name, 'cicd-observability', 'network.name')
 equal(manifest.network?.external, true, 'network.external')
 

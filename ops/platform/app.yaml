@@ -14,6 +14,7 @@ deployment:
     - compose.yaml
     - compose.build.yaml
     - compose.observability.yaml
+  workflow: .gitea/workflows/ci.yml
 
 network:
   name: cicd-observability

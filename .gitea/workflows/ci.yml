@@ -1,0 +1,60 @@
+name: check
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.25.x'
+          cache-dependency-path: backend/go.sum
+
+      - name: Install pinned CI tools
+        run: |
+          go install github.com/go-task/task/v3/cmd/task@v3.50.0
+          go install github.com/rhysd/actionlint/cmd/actionlint@v1.7.7
+          go install github.com/zricethezav/gitleaks/v8@v8.28.0
+          echo "$(go env GOPATH)/bin" >> "$GITHUB_PATH"
+          if ! command -v shellcheck >/dev/null 2>&1; then
+            if command -v sudo >/dev/null 2>&1; then
+              sudo apt-get update
+              sudo apt-get install -y shellcheck
+            else
+              apt-get update
+              apt-get install -y shellcheck
+            fi
+          fi
+
+      - name: Install locked dependencies
+        run: npm ci
+
+      - name: Check CI environment
+        run: task doctor MODE=ci
+
+      - name: Run project checks
+        run: task check
+
+      - name: Validate workflow, manifest, and Compose
+        run: |
+          actionlint .gitea/workflows/*.yml
+          task config
+
+      - name: Verify check has no tracked side effects
+        run: git diff --exit-code
+
+      - name: Scan full Git history for secrets
+        run: gitleaks git . --log-opts=--all --redact
