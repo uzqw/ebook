@@ -1,5 +1,11 @@
 import { currentUser, pb } from '@/services/pocketbase'
-import type { BookPageRecord, BookRecord, BookmarkRecord, NoteRecord, ReadingRecord } from '@/types/models'
+import type {
+  BookPageRecord,
+  BookRecord,
+  BookmarkRecord,
+  NoteRecord,
+  ReadingRecord,
+} from '@/types/models'
 
 const requireUser = () => {
   const user = currentUser()
@@ -20,7 +26,9 @@ export const authApi = {
 export const booksApi = {
   list() {
     const user = requireUser()
-    return pb.collection('books').getFullList<BookRecord>({ filter: `user = "${user.id}"`, sort: '-updated' })
+    return pb
+      .collection('books')
+      .getFullList<BookRecord>({ filter: `user = "${user.id}"`, sort: '-updated' })
   },
   detail(id: string) {
     return pb.collection('books').getOne<BookRecord>(id)
@@ -84,33 +92,51 @@ export const booksApi = {
 
 export const pagesApi = {
   list(bookId: string) {
-    return pb.collection('book_pages').getFullList<BookPageRecord>({ filter: `book = "${bookId}"`, sort: 'page_number' })
+    return pb
+      .collection('book_pages')
+      .getFullList<BookPageRecord>({ filter: `book = "${bookId}"`, sort: 'page_number' })
   },
 }
 
 export const bookmarksApi = {
   list(bookId: string) {
     const user = requireUser()
-    return pb.collection('bookmarks').getFullList<BookmarkRecord>({ filter: `book = "${bookId}" && user = "${user.id}"`, sort: 'page_number' })
+    return pb.collection('bookmarks').getFullList<BookmarkRecord>({
+      filter: `book = "${bookId}" && user = "${user.id}"`,
+      sort: 'page_number',
+    })
   },
   create(bookId: string, page: number, title: string, note = '') {
     const user = requireUser()
-    return pb.collection('bookmarks').create<BookmarkRecord>({ book: bookId, user: user.id, page_number: page, title, note })
+    return pb
+      .collection('bookmarks')
+      .create<BookmarkRecord>({ book: bookId, user: user.id, page_number: page, title, note })
   },
-  remove(id: string) { return pb.collection('bookmarks').delete(id) },
+  remove(id: string) {
+    return pb.collection('bookmarks').delete(id)
+  },
 }
 
 export const notesApi = {
   list(bookId: string) {
     const user = requireUser()
-    return pb.collection('notes').getFullList<NoteRecord>({ filter: `book = "${bookId}" && user = "${user.id}"`, sort: '-updated' })
+    return pb.collection('notes').getFullList<NoteRecord>({
+      filter: `book = "${bookId}" && user = "${user.id}"`,
+      sort: '-updated',
+    })
   },
   create(bookId: string, page: number, content: string) {
     const user = requireUser()
-    return pb.collection('notes').create<NoteRecord>({ book: bookId, user: user.id, page_number: page, content })
+    return pb
+      .collection('notes')
+      .create<NoteRecord>({ book: bookId, user: user.id, page_number: page, content })
   },
-  update(id: string, content: string) { return pb.collection('notes').update<NoteRecord>(id, { content }) },
-  remove(id: string) { return pb.collection('notes').delete(id) },
+  update(id: string, content: string) {
+    return pb.collection('notes').update<NoteRecord>(id, { content })
+  },
+  remove(id: string) {
+    return pb.collection('notes').delete(id)
+  },
 }
 
 export const readingApi = {
@@ -134,27 +160,47 @@ export const readingApi = {
         return await updateRecord(cachedRecordId)
       } catch (error) {
         this.recordIdCache.delete(cacheKey)
-        if (!(error instanceof Error && 'status' in error && (error as { status?: number }).status === 404)) {
+        if (!(
+          error instanceof Error &&
+          'status' in error &&
+          (error as { status?: number }).status === 404
+        )) {
           throw error
         }
       }
     }
 
     try {
-      const existing = await collection.getFirstListItem<ReadingRecord>(`book = "${bookId}" && user = "${user.id}"`)
+      const existing = await collection.getFirstListItem<ReadingRecord>(
+        `book = "${bookId}" && user = "${user.id}"`,
+      )
       this.recordIdCache.set(cacheKey, existing.id)
       return updateRecord(existing.id, existing.read_seconds)
     } catch (error) {
-      if (error instanceof Error && 'status' in error && (error as { status?: number }).status !== 404) {
+      if (
+        error instanceof Error &&
+        'status' in error &&
+        (error as { status?: number }).status !== 404
+      ) {
         throw error
       }
-      const created = await collection.create<ReadingRecord>({ book: bookId, user: user.id, page_number: page, progress, read_seconds: readSeconds })
+      const created = await collection.create<ReadingRecord>({
+        book: bookId,
+        user: user.id,
+        page_number: page,
+        progress,
+        read_seconds: readSeconds,
+      })
       this.recordIdCache.set(cacheKey, created.id)
       return created
     }
   },
   list() {
     const user = requireUser()
-    return pb.collection('reading_records').getFullList<ReadingRecord>({ filter: `user = "${user.id}"`, sort: '-updated', expand: 'book' })
+    return pb.collection('reading_records').getFullList<ReadingRecord>({
+      filter: `user = "${user.id}"`,
+      sort: '-updated',
+      expand: 'book',
+    })
   },
 }

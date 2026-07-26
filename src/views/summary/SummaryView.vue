@@ -10,7 +10,9 @@ const records = ref<ReadingRecord[]>([])
 const loading = ref(true)
 const error = ref('')
 const totalBooks = computed(() => records.value.length)
-const totalSeconds = computed(() => records.value.reduce((sum, r) => sum + (r.read_seconds || 0), 0))
+const totalSeconds = computed(() =>
+  records.value.reduce((sum, r) => sum + (r.read_seconds || 0), 0),
+)
 
 async function load() {
   loading.value = true
@@ -31,13 +33,21 @@ onMounted(load)
   <section class="max-w-5xl mx-auto py-2">
     <div class="page-header">
       <div>
-        <p class="text-xs font-extrabold uppercase tracking-widest text-[#0f7643] hidden sm:block">Summary</p>
+        <p class="text-xs font-extrabold uppercase tracking-widest text-[#0f7643] hidden sm:block">
+          Summary
+        </p>
         <h1 class="text-xl sm:text-3xl font-black text-[#0f1e14] tracking-tight">阅读记录汇总</h1>
-        <p class="mt-1 text-sm text-[#4a5c50] hidden sm:block">追踪并统计您的阅读偏好、时长以及每本书的阅读进度。</p>
+        <p class="mt-1 text-sm text-[#4a5c50] hidden sm:block">
+          追踪并统计您的阅读偏好、时长以及每本书的阅读进度。
+        </p>
       </div>
     </div>
 
-    <div v-if="error" role="alert" class="mb-4 flex flex-wrap items-center justify-between gap-2 rounded-lg border border-red-200 bg-red-50 p-3 text-sm font-semibold text-red-700">
+    <div
+      v-if="error"
+      role="alert"
+      class="mb-4 flex flex-wrap items-center justify-between gap-2 rounded-lg border border-red-200 bg-red-50 p-3 text-sm font-semibold text-red-700"
+    >
       <span>{{ error }}</span>
       <Button size="sm" variant="outline" @click="load">重试</Button>
     </div>
@@ -50,33 +60,52 @@ onMounted(load)
       <!-- Stats Dashboard Grid -->
       <div class="grid gap-4 grid-cols-1 sm:grid-cols-3">
         <div class="library-card rounded-2xl p-4 sm:p-5 flex items-center gap-4">
-          <div class="p-3 rounded-xl bg-emerald-50 text-[#0f7643] border border-emerald-500/5 shrink-0">
+          <div
+            class="p-3 rounded-xl bg-emerald-50 text-[#0f7643] border border-emerald-500/5 shrink-0"
+          >
             <BookOpen class="size-5 sm:size-6" />
           </div>
           <div>
             <p class="text-xs font-extrabold uppercase tracking-wider text-[#4a5c50]">阅读书籍</p>
-            <strong class="mt-0.5 block text-2xl font-black text-[#0f1e14]">{{ totalBooks }} <span class="text-xs font-semibold text-[#4a5c50]">本</span></strong>
+            <strong class="mt-0.5 block text-2xl font-black text-[#0f1e14]"
+              >{{ totalBooks }} <span class="text-xs font-semibold text-[#4a5c50]">本</span></strong
+            >
           </div>
         </div>
 
         <div class="library-card rounded-2xl p-4 sm:p-5 flex items-center gap-4">
-          <div class="p-3 rounded-xl bg-emerald-50 text-[#0f7643] border border-emerald-500/5 shrink-0">
+          <div
+            class="p-3 rounded-xl bg-emerald-50 text-[#0f7643] border border-emerald-500/5 shrink-0"
+          >
             <Clock class="size-5 sm:size-6" />
           </div>
           <div>
-            <p class="text-xs font-extrabold uppercase tracking-wider text-[#4a5c50]">累计阅读时长</p>
-            <strong class="mt-0.5 block text-2xl font-black text-[#0f1e14]">{{ Math.round(totalSeconds / 60) }} <span class="text-xs font-semibold text-[#4a5c50]">分钟</span></strong>
+            <p class="text-xs font-extrabold uppercase tracking-wider text-[#4a5c50]">
+              累计阅读时长
+            </p>
+            <strong class="mt-0.5 block text-2xl font-black text-[#0f1e14]"
+              >{{ Math.round(totalSeconds / 60) }}
+              <span class="text-xs font-semibold text-[#4a5c50]">分钟</span></strong
+            >
           </div>
         </div>
 
         <div class="library-card rounded-2xl p-4 sm:p-5 flex items-center gap-4">
-          <div class="p-3 rounded-xl bg-emerald-50 text-[#0f7643] border border-emerald-500/5 shrink-0">
+          <div
+            class="p-3 rounded-xl bg-emerald-50 text-[#0f7643] border border-emerald-500/5 shrink-0"
+          >
             <TrendingUp class="size-5 sm:size-6" />
           </div>
           <div>
-            <p class="text-xs font-extrabold uppercase tracking-wider text-[#4a5c50]">平均阅读进度</p>
+            <p class="text-xs font-extrabold uppercase tracking-wider text-[#4a5c50]">
+              平均阅读进度
+            </p>
             <strong class="mt-0.5 block text-2xl font-black text-[#0f1e14]">
-              {{ records.length ? Math.round(records.reduce((s, r) => s + r.progress, 0) / records.length * 100) : 0 }}%
+              {{
+                records.length
+                  ? Math.round((records.reduce((s, r) => s + r.progress, 0) / records.length) * 100)
+                  : 0
+              }}%
             </strong>
           </div>
         </div>
@@ -94,23 +123,31 @@ onMounted(load)
         </div>
 
         <div v-else class="divide-y divide-emerald-500/5">
-          <div v-for="record in records" :key="record.id" class="flex flex-col sm:flex-row sm:items-center justify-between py-3.5 gap-3 text-sm">
-            <RouterLink 
-              class="hover:text-[#0f7643] font-bold text-[#0f1e14] transition-colors truncate max-w-lg" 
+          <div
+            v-for="record in records"
+            :key="record.id"
+            class="flex flex-col sm:flex-row sm:items-center justify-between py-3.5 gap-3 text-sm"
+          >
+            <RouterLink
+              class="hover:text-[#0f7643] font-bold text-[#0f1e14] transition-colors truncate max-w-lg"
               :to="`/books/${record.book}/read?page=${record.page_number}`"
             >
               《{{ record.expand?.book?.title || '未知书籍' }}》 · 第 {{ record.page_number }} 页
             </RouterLink>
-            
+
             <!-- Beautiful Horizontal Progress Bar -->
             <div class="flex items-center gap-3 w-full sm:w-48 shrink-0">
-              <div class="w-full bg-[#f1f5f3] h-2 rounded-full overflow-hidden border border-emerald-500/5">
-                <div 
-                  class="bg-[#0f7643] h-full rounded-full transition-all duration-500" 
+              <div
+                class="w-full bg-[#f1f5f3] h-2 rounded-full overflow-hidden border border-emerald-500/5"
+              >
+                <div
+                  class="bg-[#0f7643] h-full rounded-full transition-all duration-500"
                   :style="{ width: `${Math.round(record.progress * 100)}%` }"
                 ></div>
               </div>
-              <strong class="w-10 text-right text-xs font-black text-[#0f1e14]">{{ Math.round(record.progress * 100) }}%</strong>
+              <strong class="w-10 text-right text-xs font-black text-[#0f1e14]"
+                >{{ Math.round(record.progress * 100) }}%</strong
+              >
             </div>
           </div>
         </div>

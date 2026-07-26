@@ -2,21 +2,24 @@
 import { computed, nextTick, onBeforeUnmount, ref, watch } from 'vue'
 import Button from '@/components/ui/Button.vue'
 
-const props = withDefaults(defineProps<{
-  open: boolean
-  title: string
-  description?: string
-  confirmText?: string
-  cancelText?: string
-  loading?: boolean
-  loadingText?: string
-}>(), {
-  description: '',
-  confirmText: '确认',
-  cancelText: '取消',
-  loading: false,
-  loadingText: '处理中...',
-})
+const props = withDefaults(
+  defineProps<{
+    open: boolean
+    title: string
+    description?: string
+    confirmText?: string
+    cancelText?: string
+    loading?: boolean
+    loadingText?: string
+  }>(),
+  {
+    description: '',
+    confirmText: '确认',
+    cancelText: '取消',
+    loading: false,
+    loadingText: '处理中...',
+  },
+)
 
 const emit = defineEmits<{
   'update:open': [value: boolean]
@@ -26,7 +29,9 @@ const emit = defineEmits<{
 const dialogEl = ref<HTMLElement | null>(null)
 let previousActiveElement: HTMLElement | null = null
 
-const dialogTitleId = computed(() => `alert-dialog-title-${props.title.replace(/\W+/g, '-').toLowerCase()}`)
+const dialogTitleId = computed(
+  () => `alert-dialog-title-${props.title.replace(/\W+/g, '-').toLowerCase()}`,
+)
 const dialogDescriptionId = computed(() => `${dialogTitleId.value}-description`)
 
 function close() {
@@ -36,7 +41,9 @@ function close() {
 function focusableElements(): HTMLElement[] {
   if (!dialogEl.value) return []
   return Array.from(
-    dialogEl.value.querySelectorAll<HTMLElement>('button, [href], input, textarea, select, [tabindex]:not([tabindex="-1"])'),
+    dialogEl.value.querySelectorAll<HTMLElement>(
+      'button, [href], input, textarea, select, [tabindex]:not([tabindex="-1"])',
+    ),
   ).filter((el) => !el.hasAttribute('disabled'))
 }
 
@@ -60,17 +67,21 @@ function onKeydown(event: KeyboardEvent) {
   }
 }
 
-watch(() => props.open, async (open) => {
-  document.body.style.overflow = open ? 'hidden' : ''
-  if (open) {
-    previousActiveElement = document.activeElement as HTMLElement | null
-    await nextTick()
-    dialogEl.value?.focus()
-  } else {
-    previousActiveElement?.focus()
-    previousActiveElement = null
-  }
-}, { immediate: true })
+watch(
+  () => props.open,
+  async (open) => {
+    document.body.style.overflow = open ? 'hidden' : ''
+    if (open) {
+      previousActiveElement = document.activeElement as HTMLElement | null
+      await nextTick()
+      dialogEl.value?.focus()
+    } else {
+      previousActiveElement?.focus()
+      previousActiveElement = null
+    }
+  },
+  { immediate: true },
+)
 
 onBeforeUnmount(() => {
   document.body.style.overflow = ''
@@ -110,12 +121,18 @@ onBeforeUnmount(() => {
         @keydown="onKeydown"
       >
         <div class="flex flex-col gap-2">
-          <h2 :id="dialogTitleId" class="text-lg font-semibold leading-none tracking-tight">{{ title }}</h2>
-          <p v-if="description" :id="dialogDescriptionId" class="text-sm text-muted-foreground">{{ description }}</p>
+          <h2 :id="dialogTitleId" class="text-lg font-semibold leading-none tracking-tight">
+            {{ title }}
+          </h2>
+          <p v-if="description" :id="dialogDescriptionId" class="text-sm text-muted-foreground">
+            {{ description }}
+          </p>
         </div>
         <div class="mt-6 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
           <Button variant="outline" :disabled="loading" @click="close">{{ cancelText }}</Button>
-          <Button variant="destructive" :disabled="loading" @click="emit('confirm')">{{ loading ? loadingText : confirmText }}</Button>
+          <Button variant="destructive" :disabled="loading" @click="emit('confirm')">{{
+            loading ? loadingText : confirmText
+          }}</Button>
         </div>
       </div>
     </Transition>

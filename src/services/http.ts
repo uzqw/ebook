@@ -45,7 +45,11 @@ export function installResilientFetch(baseUrl: string) {
   const isHeavy = (url: string, init?: RequestInit) =>
     init?.body instanceof FormData || HEAVY_PATHS.some((path) => url.includes(path))
 
-  async function request(input: RequestInfo | URL, init: RequestInit | undefined, attempt: number): Promise<Response> {
+  async function request(
+    input: RequestInfo | URL,
+    init: RequestInit | undefined,
+    attempt: number,
+  ): Promise<Response> {
     const url = resolveUrl(input)
     const { method, callerSignal } = extractRequestInfo(input, init)
     const timeoutMs = isHeavy(url, init) ? HEAVY_TIMEOUT_MS : LIGHT_TIMEOUT_MS
@@ -57,7 +61,8 @@ export function installResilientFetch(baseUrl: string) {
     } catch (error) {
       const callerAborted = callerSignal?.aborted === true
       const bodyConsumed = input instanceof Request && input.body !== null
-      const canRetry = !callerAborted && !bodyConsumed && attempt < MAX_RETRIES && IDEMPOTENT_METHODS.has(method)
+      const canRetry =
+        !callerAborted && !bodyConsumed && attempt < MAX_RETRIES && IDEMPOTENT_METHODS.has(method)
       if (!canRetry) throw error
       await sleep(RETRY_DELAY_MS * (attempt + 1))
       // Preserve only the caller's original signal. The combined `signal`

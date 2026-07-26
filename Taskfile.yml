@@ -87,19 +87,33 @@ tasks:
         exit 4
 
   fmt:
-    desc: Report that a repository formatter is not configured yet
+    desc: Format frontend, configuration, and Go sources
     cmds:
+      - npm run format
+      - gofmt -w backend
+
+  fmt:check:
+    desc: Check formatting without modifying files
+    cmds:
+      - npm run format:check
       - |
-        printf '%s\n' \
-          'NOT_APPLICABLE task=fmt reason=formatter-not-configured'
-        exit 4
+        unformatted="$(gofmt -l backend)"
+        if [ -n "$unformatted" ]; then
+          printf 'GOFMT_REQUIRED\n%s\n' "$unformatted" >&2
+          exit 1
+        fi
 
   lint:
-    desc: Run current static checks
+    desc: Run frontend, shell, and Go linters
     cmds:
+      - npm run lint
       - shellcheck scripts/*.sh
-      - npm run typecheck
       - cd backend && go vet ./...
+
+  typecheck:
+    desc: Run frontend type checking
+    cmds:
+      - npm run typecheck
 
   test:
     desc: Run data path, frontend, and backend tests
@@ -117,13 +131,21 @@ tasks:
         CGO_ENABLED=0 GOOS=linux go build -tags nocgo \
           -o ebook-pocketbase ./cmd/ebook-pocketbase
 
+  config:
+    desc: Validate manifest and merged Compose configuration
+    cmds:
+      - node scripts/validate-config.mjs
+
   check:
-    desc: Run the side-effect-free CI aggregate checks
+    desc: Run ordered, side-effect-free frontend project checks
     cmds:
       - task doctor MODE=ci
+      - task fmt:check
       - task lint
+      - task typecheck
       - task test
       - task build
+      - task config
 
   deploy:
     desc: Check and deploy the application with Compose v2

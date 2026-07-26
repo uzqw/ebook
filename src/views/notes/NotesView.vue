@@ -17,7 +17,9 @@ async function load() {
   try {
     const list = await booksApi.list()
     books.value = list
-    const entries = await Promise.all(list.map((book) => notesApi.list(book.id).then((notes) => [book.id, notes] as const)))
+    const entries = await Promise.all(
+      list.map((book) => notesApi.list(book.id).then((notes) => [book.id, notes] as const)),
+    )
     notesByBook.value = Object.fromEntries(entries)
   } catch (err) {
     error.value = err instanceof Error ? err.message : '加载失败'
@@ -33,13 +35,21 @@ onMounted(load)
   <section class="max-w-5xl mx-auto py-2">
     <div class="page-header">
       <div>
-        <p class="text-xs font-extrabold uppercase tracking-widest text-[#0f7643] hidden sm:block">Notes</p>
+        <p class="text-xs font-extrabold uppercase tracking-widest text-[#0f7643] hidden sm:block">
+          Notes
+        </p>
         <h1 class="text-xl sm:text-3xl font-black text-[#0f1e14] tracking-tight">笔记管理</h1>
-        <p class="mt-1 text-sm text-[#4a5c50] hidden sm:block">按书籍汇总您在阅读中记录的页面重点与想法心得。</p>
+        <p class="mt-1 text-sm text-[#4a5c50] hidden sm:block">
+          按书籍汇总您在阅读中记录的页面重点与想法心得。
+        </p>
       </div>
     </div>
 
-    <div v-if="error" role="alert" class="mb-4 flex flex-wrap items-center justify-between gap-2 rounded-lg border border-red-200 bg-red-50 p-3 text-sm font-semibold text-red-700">
+    <div
+      v-if="error"
+      role="alert"
+      class="mb-4 flex flex-wrap items-center justify-between gap-2 rounded-lg border border-red-200 bg-red-50 p-3 text-sm font-semibold text-red-700"
+    >
       <span>{{ error }}</span>
       <Button size="sm" variant="outline" @click="load">重试</Button>
     </div>
@@ -49,11 +59,18 @@ onMounted(load)
     </div>
 
     <div v-else class="grid gap-6">
-      <article v-for="book in books" :key="book.id" class="library-card rounded-2xl p-4 sm:p-5 flex flex-col gap-3">
+      <article
+        v-for="book in books"
+        :key="book.id"
+        class="library-card rounded-2xl p-4 sm:p-5 flex flex-col gap-3"
+      >
         <div class="flex items-center gap-2.5 pb-2 border-b border-emerald-500/5">
           <NotebookPen class="size-5 text-[#0f7643] opacity-80" />
           <h2 class="text-base font-extrabold text-[#0f1e14] truncate">{{ book.title }}</h2>
-          <span v-if="notesByBook[book.id]?.length" class="text-xs font-semibold px-2 py-0.5 rounded-full bg-emerald-50 text-[#0f7643] border border-emerald-500/10">
+          <span
+            v-if="notesByBook[book.id]?.length"
+            class="text-xs font-semibold px-2 py-0.5 rounded-full bg-emerald-50 text-[#0f7643] border border-emerald-500/10"
+          >
             {{ notesByBook[book.id].length }} 条笔记
           </span>
         </div>
@@ -63,12 +80,18 @@ onMounted(load)
         </div>
 
         <div v-else class="grid gap-3 mt-1 grid-cols-1 md:grid-cols-2">
-          <div v-for="note in notesByBook[book.id]" :key="note.id" class="rounded-xl border border-emerald-500/5 bg-[#fbfcfb] hover:bg-emerald-50/5 p-3.5 text-sm flex flex-col justify-between gap-2.5 transition-colors">
-            <p class="whitespace-pre-wrap text-[#0f1e14] leading-relaxed font-medium">{{ note.content }}</p>
-            
+          <div
+            v-for="note in notesByBook[book.id]"
+            :key="note.id"
+            class="rounded-xl border border-emerald-500/5 bg-[#fbfcfb] hover:bg-emerald-50/5 p-3.5 text-sm flex flex-col justify-between gap-2.5 transition-colors"
+          >
+            <p class="whitespace-pre-wrap text-[#0f1e14] leading-relaxed font-medium">
+              {{ note.content }}
+            </p>
+
             <div class="flex justify-end pt-2 border-t border-dashed border-emerald-500/5">
-              <RouterLink 
-                class="inline-flex items-center gap-1 text-xs font-bold text-[#0f7643] hover:underline" 
+              <RouterLink
+                class="inline-flex items-center gap-1 text-xs font-bold text-[#0f7643] hover:underline"
                 :to="`/books/${book.id}/read?page=${note.page_number}`"
               >
                 <span>第 {{ note.page_number }} 页</span>

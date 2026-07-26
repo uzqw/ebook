@@ -62,10 +62,13 @@ task setup       # install locked frontend and Go dependencies
 task doctor      # check the runtime environment without modifying it
 task dev         # run the frontend and backend in the foreground
 task bootstrap   # create collections and demo users
-task lint        # run the current static checks
+task fmt:check   # verify frontend and Go formatting
+task lint        # run frontend, shell, and Go linters
+task typecheck   # run frontend type checking
 task test        # run frontend and backend tests
-task check       # run the CI aggregate checks
 task build       # build production frontend and backend artifacts
+task config      # validate manifest and merged Compose configuration
+task check       # run all checks above in the documented order
 task deploy:down # stop deployment without deleting persistent data
 task deploy:logs # show deployment logs
 ```

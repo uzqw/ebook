@@ -16,9 +16,18 @@ export const router = createRouter({
   routes: [
     { path: '/login', name: 'login', component: LoginView, meta: { guestOnly: true } },
     { path: '/register', name: 'register', component: RegisterView, meta: { guestOnly: true } },
-    { path: '/books/:id/read', name: 'book-reader', component: ReaderView, props: true, meta: { requiresAuth: true } },
     {
-      path: '/', component: AppLayout, meta: { requiresAuth: true }, children: [
+      path: '/books/:id/read',
+      name: 'book-reader',
+      component: ReaderView,
+      props: true,
+      meta: { requiresAuth: true },
+    },
+    {
+      path: '/',
+      component: AppLayout,
+      meta: { requiresAuth: true },
+      children: [
         { path: '', redirect: '/books' },
         { path: 'books', name: 'books', component: LibraryView },
         { path: 'books/upload', name: 'book-upload', component: UploadBookView },

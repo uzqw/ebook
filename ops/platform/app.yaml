@@ -60,7 +60,7 @@ logs:
   services:
     - web
   labels:
-    uzqw.observe: "true"
+    uzqw.observe: 'true'
     uzqw.app: ebook-reader
 
 data:

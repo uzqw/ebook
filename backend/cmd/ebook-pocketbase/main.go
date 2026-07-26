@@ -1506,11 +1506,11 @@ func registerRoutes(app core.App, svc *pdfService) {
 			re.Response.Header().Set("Content-Type", "text/plain; version=0.0.4")
 			return re.String(http.StatusOK, fmt.Sprintf(
 				"# HELP ebook_reader_up Whether the ebook reader process is serving requests.\n"+
-				"# TYPE ebook_reader_up gauge\n"+
-				"ebook_reader_up{app=\"ebook_reader_uzqw\"} 1\n"+
-				"# HELP ebook_reader_metrics_timestamp_seconds Unix timestamp when this scrape response was generated.\n"+
-				"# TYPE ebook_reader_metrics_timestamp_seconds gauge\n"+
-				"ebook_reader_metrics_timestamp_seconds{app=\"ebook_reader_uzqw\"} %d\n",
+					"# TYPE ebook_reader_up gauge\n"+
+					"ebook_reader_up{app=\"ebook_reader_uzqw\"} 1\n"+
+					"# HELP ebook_reader_metrics_timestamp_seconds Unix timestamp when this scrape response was generated.\n"+
+					"# TYPE ebook_reader_metrics_timestamp_seconds gauge\n"+
+					"ebook_reader_metrics_timestamp_seconds{app=\"ebook_reader_uzqw\"} %d\n",
 				time.Now().Unix(),
 			))
 		})

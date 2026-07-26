@@ -18,7 +18,7 @@ export default defineConfig({
       '/pb': {
         target: `http://${process.env.POCKETBASE_HOST || '127.0.0.1'}:${process.env.POCKETBASE_PORT || '8090'}`,
         changeOrigin: true,
-        rewrite: path => path.replace(/^\/pb/, ''),
+        rewrite: (path) => path.replace(/^\/pb/, ''),
       },
     },
   },

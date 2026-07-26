@@ -50,16 +50,20 @@ describe('installResilientFetch', () => {
     const signals: AbortSignal[] = []
     let calls = 0
 
-    mockWindow.fetch = vi.fn(async (_input: RequestInfo | URL, init?: RequestInit): Promise<Response> => {
-      calls++
-      signals.push(init!.signal!)
-      if (calls === 1) {
-        return new Promise((_resolve, reject) => {
-          init!.signal!.addEventListener('abort', () => reject(init!.signal!.reason), { once: true })
-        })
-      }
-      return new Response('{"ok":true}', { status: 200 })
-    })
+    mockWindow.fetch = vi.fn(
+      async (_input: RequestInfo | URL, init?: RequestInit): Promise<Response> => {
+        calls++
+        signals.push(init!.signal!)
+        if (calls === 1) {
+          return new Promise((_resolve, reject) => {
+            init!.signal!.addEventListener('abort', () => reject(init!.signal!.reason), {
+              once: true,
+            })
+          })
+        }
+        return new Response('{"ok":true}', { status: 200 })
+      },
+    )
 
     installResilientFetch(BASE_URL)
 
@@ -80,7 +84,9 @@ describe('installResilientFetch', () => {
       calls++
       if (calls === 1) {
         return new Promise((_resolve, reject) => {
-          init!.signal!.addEventListener('abort', () => reject(init!.signal!.reason), { once: true })
+          init!.signal!.addEventListener('abort', () => reject(init!.signal!.reason), {
+            once: true,
+          })
         })
       }
       return Promise.resolve(new Response('<p>page</p>', { status: 200 }))
@@ -118,7 +124,9 @@ describe('installResilientFetch', () => {
       calls++
       receivedSignal = init?.signal ?? undefined
       return new Promise((_resolve, reject) => {
-        receivedSignal?.addEventListener('abort', () => reject(receivedSignal?.reason), { once: true })
+        receivedSignal?.addEventListener('abort', () => reject(receivedSignal?.reason), {
+          once: true,
+        })
       })
     })
 
@@ -137,10 +145,12 @@ describe('installResilientFetch', () => {
 
   it('does not retry POST requests', async () => {
     let calls = 0
-    mockWindow.fetch = vi.fn(async (_input: RequestInfo | URL, _init?: RequestInit): Promise<Response> => {
-      calls++
-      return Promise.reject(new Error('network error'))
-    })
+    mockWindow.fetch = vi.fn(
+      async (_input: RequestInfo | URL, _init?: RequestInit): Promise<Response> => {
+        calls++
+        return Promise.reject(new Error('network error'))
+      },
+    )
 
     installResilientFetch(BASE_URL)
 
@@ -150,10 +160,12 @@ describe('installResilientFetch', () => {
 
   it('does not retry PATCH requests', async () => {
     let calls = 0
-    mockWindow.fetch = vi.fn(async (_input: RequestInfo | URL, _init?: RequestInit): Promise<Response> => {
-      calls++
-      return Promise.reject(new Error('network error'))
-    })
+    mockWindow.fetch = vi.fn(
+      async (_input: RequestInfo | URL, _init?: RequestInit): Promise<Response> => {
+        calls++
+        return Promise.reject(new Error('network error'))
+      },
+    )
 
     installResilientFetch(BASE_URL)
 
