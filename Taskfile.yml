@@ -1,33 +1,134 @@
 version: '3'
 
+dotenv:
+  - .env
+
 tasks:
-  setup:
+  default:
+    desc: List available tasks
     cmds:
-      - npm install
-      - cd backend && go mod tidy && CGO_ENABLED=0 GOOS=linux go build -tags nocgo -o ebook-pocketbase ./cmd/ebook-pocketbase
+      - task --list
+
+  setup:
+    desc: Install dependencies without overwriting config or data
+    cmds:
+      - |
+        set -eu
+        if [ ! -f .env ]; then
+          install -m 0600 .env.example .env
+          printf '%s\n' \
+            'setup: created .env; review all credentials before deployment'
+        else
+          printf '%s\n' 'setup: .env exists, leaving it untouched'
+        fi
+        npm ci
+        (cd backend && go mod download)
+
+  doctor:
+    desc: Run read-only environment checks (MODE=runtime|ci)
+    cmds:
+      - ./scripts/doctor.sh "{{.MODE}}"
+
+  dev:
+    desc: Start the frontend and backend in the foreground
+    cmds:
+      - task --parallel frontend backend
+
+  frontend:
+    desc: Start the Vite development server
+    cmds:
+      - npm run dev
 
   backend:
+    desc: Build and start the local PocketBase extension
     cmds:
-      - cd backend && CGO_ENABLED=0 GOOS=linux go build -tags nocgo -o ebook-pocketbase ./cmd/ebook-pocketbase && PUBLIC_DIR=../dist ./ebook-pocketbase serve --http=127.0.0.1:8090 --dir ../.local/pb_data --hooksDir ../pb_hooks
+      - |
+        cd backend
+        CGO_ENABLED=0 GOOS=linux go build -tags nocgo \
+          -o ebook-pocketbase ./cmd/ebook-pocketbase
+        PUBLIC_DIR=../dist ./ebook-pocketbase serve \
+          --http="${POCKETBASE_HOST:-127.0.0.1}:${POCKETBASE_PORT:-8090}" \
+          --dir "${POCKETBASE_DATA_DIR:-../.local/pb_data}" \
+          --hooksDir ../pb_hooks
 
   bootstrap:
+    desc: Create the local PocketBase collections and demo users
     cmds:
       - node scripts/bootstrap-pocketbase.mjs
 
-  check:
+  stop:
+    desc: Explain how to stop foreground development processes
+    cmds:
+      - |
+        printf '%s\n' \
+          'NOT_APPLICABLE task=stop reason=dev-runs-in-foreground-use-signal'
+        exit 4
+
+  status:
+    desc: Check local frontend and backend endpoints
+    cmds:
+      - |
+        set +e
+        rc=0
+        frontend_url="http://${FRONTEND_HOST:-127.0.0.1}:${FRONTEND_PORT:-5173}"
+        backend_url="http://${POCKETBASE_HOST:-127.0.0.1}:${POCKETBASE_PORT:-8090}"
+        printf 'frontend: %s\n' "$frontend_url"
+        curl -fsS --max-time 3 "$frontend_url" >/dev/null || rc=1
+        printf 'backend: %s/api/health\n' "$backend_url"
+        curl -fsS --max-time 3 "$backend_url/api/health" >/dev/null || rc=1
+        exit "$rc"
+
+  logs:
+    desc: Explain foreground development log handling
+    cmds:
+      - |
+        printf '%s\n' \
+          'NOT_APPLICABLE task=logs reason=dev-logs-stream-to-foreground'
+        exit 4
+
+  fmt:
+    desc: Report that a repository formatter is not configured yet
+    cmds:
+      - |
+        printf '%s\n' \
+          'NOT_APPLICABLE task=fmt reason=formatter-not-configured'
+        exit 4
+
+  lint:
+    desc: Run current static checks
+    cmds:
+      - shellcheck scripts/*.sh
+      - npm run typecheck
+      - cd backend && go vet ./...
+
+  test:
+    desc: Run data path, frontend, and backend tests
     cmds:
       - ./scripts/test-data-path.sh
-      - npm run check
+      - npm test
       - cd backend && go test ./...
 
   build:
+    desc: Build frontend and backend artifacts
     cmds:
       - npm run build
-      - cd backend && CGO_ENABLED=0 GOOS=linux go build -tags nocgo -o ebook-pocketbase ./cmd/ebook-pocketbase
+      - |
+        cd backend
+        CGO_ENABLED=0 GOOS=linux go build -tags nocgo \
+          -o ebook-pocketbase ./cmd/ebook-pocketbase
+
+  check:
+    desc: Run the side-effect-free CI aggregate checks
+    cmds:
+      - task doctor MODE=ci
+      - task lint
+      - task test
+      - task build
 
   deploy:
-    deps: [check]
+    desc: Check and deploy the application with Compose v2
     cmds:
+      - task check
       - |
         data_path="$(./scripts/resolve-data-path.sh)"
         mkdir -p "$data_path/tmp"
@@ -46,3 +147,34 @@ tasks:
           docker compose -p ebook-reader-uzqw \
           -f compose.yaml -f compose.build.yaml \
           -f compose.observability.yaml up -d --build --force-recreate
+
+  deploy:down:
+    desc: Stop the deployment without deleting persistent data
+    cmds:
+      - |
+        data_path="$(./scripts/resolve-data-path.sh)"
+        DOCKER_PB_DATA_PATH="$data_path" \
+          docker compose -p ebook-reader-uzqw \
+          -f compose.yaml -f compose.build.yaml \
+          -f compose.observability.yaml down
+
+  deploy:logs:
+    desc: Show deployment logs (FOLLOW=1, TAIL=n)
+    cmds:
+      - |
+        data_path="$(./scripts/resolve-data-path.sh)"
+        follow_arg=
+        [ "${FOLLOW:-0}" != 1 ] || follow_arg=--follow
+        DOCKER_PB_DATA_PATH="$data_path" \
+          docker compose -p ebook-reader-uzqw \
+          -f compose.yaml -f compose.build.yaml \
+          -f compose.observability.yaml logs \
+          --tail "${TAIL:-100}" $follow_arg
+
+  clean:
+    desc: Remove only regenerable build and cache artifacts
+    cmds:
+      - |
+        rm -rf -- dist node_modules/.vite node_modules/.cache
+        rm -f -- backend/ebook-pocketbase
+        printf '%s\n' 'clean: removed build outputs and tool caches'

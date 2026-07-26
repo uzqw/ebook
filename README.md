@@ -23,14 +23,15 @@ The deployment path resolver rejects repository-local and unsafe roots. Path
 parameterization does not migrate existing data; follow the migration runbook
 before deploying against a new data directory.
 
-For local development:
+For local development, run the foreground services with:
 
 ```bash
 task setup
-task backend
-task bootstrap
-task dev-frontend
+task doctor
+task dev
 ```
+
+Run `task bootstrap` from another terminal after the backend is healthy.
 
 Default local backend address:
 
@@ -57,12 +58,16 @@ Requirements:
 Useful commands:
 
 ```bash
-task setup        # install frontend deps and build backend
-task backend      # run the PocketBase extension
-task bootstrap    # create collections and demo users
-task dev-frontend # run the Vite frontend
-task check        # typecheck and go test
-task build        # production frontend + backend build
+task setup       # install locked frontend and Go dependencies
+task doctor      # check the runtime environment without modifying it
+task dev         # run the frontend and backend in the foreground
+task bootstrap   # create collections and demo users
+task lint        # run the current static checks
+task test        # run frontend and backend tests
+task check       # run the CI aggregate checks
+task build       # build production frontend and backend artifacts
+task deploy:down # stop deployment without deleting persistent data
+task deploy:logs # show deployment logs
 ```
 
 Demo account:
