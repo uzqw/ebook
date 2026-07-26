@@ -1,7 +1,6 @@
 services:
   ebook-reader-uzqw:
     image: ${DOCKER_IMAGE:-ebook-reader-uzqw:local}
-    container_name: ${DOCKER_CONTAINER_NAME:-ebook-reader-uzqw}
     user: "${APP_UID:-${HOST_UID:-1000}}:${APP_GID:-${HOST_GID:-1000}}"
     # ports:
     #   - "${DOCKER_HOST_PORT:-18094}:18093"
