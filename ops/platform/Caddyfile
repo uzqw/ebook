@@ -1,0 +1,11 @@
+https://${PLATFORM_HOST}:18094 {
+	tls internal
+
+	# Avoid carrying an idle client connection across laptop suspend.
+	header {
+		Connection close
+		Alt-Svc clear
+	}
+
+	reverse_proxy ebook-reader-uzqw:18093
+}
