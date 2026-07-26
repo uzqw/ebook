@@ -16,6 +16,7 @@ tasks:
 
   check:
     cmds:
+      - ./scripts/test-data-path.sh
       - npm run check
       - cd backend && go test ./...
 
@@ -26,6 +27,12 @@ tasks:
 
   docker-deploy:cicd:
     cmds:
-      - mkdir -p ~/wp/cicd-uzqw/data/ebook-reader/pb_data/tmp && chmod 1777 ~/wp/cicd-uzqw/data/ebook-reader/pb_data/tmp
-      - docker rm -f cicd-local-ebook-reader 2>/dev/null || true
-      - DOCKER_CONTAINER_NAME=cicd-local-ebook-reader DOCKER_PB_DATA_PATH=~/wp/cicd-uzqw/data/ebook-reader/pb_data docker-compose -f compose.yaml -f compose.build.yaml -f compose.observability.yaml up -d --build --force-recreate
+      - |
+        data_path="$(./scripts/resolve-data-path.sh)"
+        mkdir -p "$data_path/tmp"
+        chmod 1777 "$data_path/tmp"
+        docker rm -f cicd-local-ebook-reader 2>/dev/null || true
+        DOCKER_CONTAINER_NAME=cicd-local-ebook-reader \
+          DOCKER_PB_DATA_PATH="$data_path" \
+          docker-compose -f compose.yaml -f compose.build.yaml \
+          -f compose.observability.yaml up -d --build --force-recreate

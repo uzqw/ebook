@@ -11,6 +11,18 @@ cp .env.example .env
 task docker-deploy:cicd
 ```
 
+Deployment stores PocketBase data under
+`${APP_DATA_ROOT}/ebook-reader/pb_data`. Set `APP_DATA_ROOT` to an absolute
+application data root, or leave it unset to use the XDG user default:
+
+```text
+${XDG_DATA_HOME:-$HOME/.local/share}/uzqw/apps
+```
+
+The deployment path resolver rejects repository-local and unsafe roots. Path
+parameterization does not migrate existing data; follow the migration runbook
+before deploying against a new data directory.
+
 For local development:
 
 ```bash
