@@ -1,0 +1,75 @@
+apiVersion: platform.uzqw/v1
+kind: Application
+
+metadata:
+  id: ebook-reader
+  displayName: Ebook Reader
+  owners:
+    - ebook-reader
+
+deployment:
+  type: docker-compose
+  managedBy: application
+  composeFiles:
+    - compose.yaml
+    - compose.build.yaml
+    - compose.observability.yaml
+
+network:
+  name: cicd-observability
+  external: true
+
+services:
+  - id: web
+    composeService: ebook-reader-uzqw
+    dnsName: ebook-reader-uzqw
+    port: 18093
+    protocol: http
+
+healthChecks:
+  - id: readiness
+    service: web
+    path: /api/health
+    interval: 10s
+    timeout: 3s
+
+caddy:
+  source: ops/platform/Caddyfile
+  routes:
+    - id: public
+      listener:
+        host: ${PLATFORM_HOST}
+        port: 18094
+        protocol: https
+        httpVersions:
+          - h1
+      pathPrefix: /
+      upstream:
+        service: web
+
+metrics:
+  - id: application
+    service: web
+    path: /metrics
+    interval: 15s
+    labels:
+      component: web
+
+logs:
+  driver: stdout
+  services:
+    - web
+  labels:
+    uzqw.observe: "true"
+    uzqw.app: ebook-reader
+
+data:
+  - id: pocketbase
+    owner: ebook-reader
+    path: ${APP_DATA_ROOT}/ebook-reader/pb_data
+    kind: pocketbase
+    lifecycle: retain
+    backup:
+      enabled: true
+      strategy: application-consistent
+      restoreOrder: 10

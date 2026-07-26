@@ -2,7 +2,7 @@ services:
   ebook-reader-uzqw:
     labels:
       uzqw.observe: "true"
-      uzqw.app: ebook_reader_uzqw
+      uzqw.app: ebook-reader
     networks:
       - cicd-observability
 
