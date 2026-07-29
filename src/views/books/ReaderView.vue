@@ -5,6 +5,7 @@ import {
   ArrowLeft,
   BookmarkPlus,
   BookMarked,
+  BookOpenText,
   ChevronLeft,
   ChevronRight,
   Info,
@@ -19,6 +20,8 @@ import {
 } from '@lucide/vue'
 import { bookmarksApi, booksApi, notesApi, pagesApi, readingApi } from '@/services/api'
 import { installCachedCjkFont } from '@/services/font-cache'
+import { parseLayoutPreference, reflowText, resolveLayoutMode } from '@/lib/reflow'
+import type { LayoutPreference } from '@/lib/reflow'
 import type {
   BookPageRecord,
   BookRecord,
@@ -44,10 +47,22 @@ const activeSidePanel = ref<'index' | 'bookmarks' | 'notes' | null>(null)
 const loading = ref(true)
 const error = ref('')
 const ZOOM_STORAGE_KEY = 'ebook-reader-zoom'
+const LAYOUT_STORAGE_KEY = 'ebook-reader-layout'
+
 function storedZoom() {
   const value = Number(window.localStorage.getItem(ZOOM_STORAGE_KEY))
   return Number.isFinite(value) && value >= 1 && value <= 4 ? value : 1
 }
+function storedLayoutPreference(): LayoutPreference {
+  return parseLayoutPreference(window.localStorage.getItem(LAYOUT_STORAGE_KEY))
+}
+const narrowViewportQuery = window.matchMedia('(max-width: 768px)')
+const narrowViewport = ref(narrowViewportQuery.matches)
+const layoutPreference = ref<LayoutPreference>(storedLayoutPreference())
+const effectiveLayoutMode = computed(() =>
+  resolveLayoutMode(layoutPreference.value, narrowViewport.value),
+)
+const reflowEnabled = computed(() => effectiveLayoutMode.value === 'reflow')
 const zoom = ref(storedZoom())
 const startedAt = Date.now()
 const parsePollTimer = ref<number | null>(null)
@@ -68,6 +83,7 @@ interface TocDisplayItem {
 }
 
 const currentPage = computed(() => pages.value.find((item) => item.page_number === page.value))
+const reflowBlocks = computed(() => reflowText(currentPage.value?.text))
 const pageCount = computed(() => book.value?.page_count || pages.value.length || 1)
 const canRenderPage = computed(() => book.value?.parse_status === 'completed')
 const iframeHeight = ref(800)
@@ -90,12 +106,13 @@ async function applyCachedFontToFrame() {
   }
 }
 async function loadPageHtml() {
+  const requestId = ++pageHtmlRequestId
   const currentBook = book.value
-  if (!canRenderPage.value || !currentBook) {
+  if (!canRenderPage.value || !currentBook || reflowEnabled.value) {
     pageHtml.value = ''
+    pageHtmlLoading.value = false
     return
   }
-  const requestId = ++pageHtmlRequestId
   pageHtmlLoading.value = true
   error.value = ''
   try {
@@ -276,6 +293,14 @@ function toggleSidePanel(panel: 'index' | 'bookmarks' | 'notes') {
 function resetZoom() {
   zoom.value = 1
 }
+function toggleLayoutMode() {
+  layoutPreference.value = reflowEnabled.value ? 'original' : 'reflow'
+  window.localStorage.setItem(LAYOUT_STORAGE_KEY, layoutPreference.value)
+}
+function showOriginalPage() {
+  layoutPreference.value = 'original'
+  window.localStorage.setItem(LAYOUT_STORAGE_KEY, layoutPreference.value)
+}
 function zoomIn() {
   zoom.value = Math.min(4, Number((zoom.value + 0.25).toFixed(2)))
 }
@@ -368,13 +393,21 @@ watch(page, () => {
 watch(zoom, (value) => {
   window.localStorage.setItem(ZOOM_STORAGE_KEY, String(value))
 })
+watch(effectiveLayoutMode, () => {
+  void loadPageHtml()
+})
 watch(activeSidePanel, (panel) => {
   if (panel) {
     chromeVisible.value = true
   }
 })
+function onViewportChange(event: MediaQueryListEvent) {
+  narrowViewport.value = event.matches
+}
+
 onMounted(() => {
   void load()
+  narrowViewportQuery.addEventListener('change', onViewportChange)
   window.addEventListener('message', handleMessage)
   window.addEventListener('keydown', onGlobalKeydown)
   window.addEventListener('mouseleave', onWindowMouseLeave)
@@ -387,6 +420,7 @@ onBeforeUnmount(() => {
       error.value = err instanceof Error ? err.message : '保存阅读进度失败'
     })
   }
+  narrowViewportQuery.removeEventListener('change', onViewportChange)
   window.removeEventListener('message', handleMessage)
   window.removeEventListener('keydown', onGlobalKeydown)
   window.removeEventListener('mouseleave', onWindowMouseLeave)
@@ -457,7 +491,7 @@ onBeforeUnmount(() => {
             @click="zoomOut"
             ><ZoomOut data-icon="inline-start"
           /></Button>
-          <span class="w-10 text-center text-xs font-bold text-[#384c3d]"
+          <span class="reader-zoom-value w-10 text-center text-xs font-bold text-[#384c3d]"
             >{{ Math.round(zoom * 100) }}%</span
           >
           <Button
@@ -472,13 +506,24 @@ onBeforeUnmount(() => {
           <Button
             variant="ghost"
             size="sm"
-            class="px-2"
+            class="reader-reset-zoom px-2"
             title="重置缩放"
             aria-label="重置缩放"
             @click="resetZoom"
             ><RotateCcw data-icon="inline-start"
           /></Button>
         </div>
+        <Button
+          variant="ghost"
+          size="sm"
+          :class="reflowEnabled ? 'bg-[#dcebdc]' : ''"
+          :aria-pressed="reflowEnabled"
+          :title="reflowEnabled ? '切换到原版页面' : '切换到自适应排版'"
+          @click="toggleLayoutMode"
+          ><BookOpenText data-icon="inline-start" /><span class="reader-layout-label">{{
+            reflowEnabled ? '自适应' : '原版'
+          }}</span></Button
+        >
         <div class="flex items-center gap-1">
           <Button
             variant="ghost"
@@ -518,8 +563,29 @@ onBeforeUnmount(() => {
       <div v-if="book.parse_status !== 'completed'" class="panel mb-4 text-sm text-[#384c3d]">
         解析尚未完成。若刚上传，请稍后刷新；失败时可查看书籍信息里的错误。
       </div>
+      <article
+        v-if="canRenderPage && reflowEnabled && reflowBlocks.length"
+        class="reader-page reader-reflow-page select-text"
+        :style="{
+          fontSize: `clamp(${16 * zoom}px, calc(${14 * zoom}px + 1vw), ${18 * zoom}px)`,
+        }"
+      >
+        <template v-for="(block, index) in reflowBlocks" :key="`${block.kind}-${index}`">
+          <h2 v-if="block.kind === 'heading'" class="reader-reflow-heading">
+            {{ block.text }}
+          </h2>
+          <p v-else class="reader-reflow-paragraph">{{ block.text }}</p>
+        </template>
+      </article>
       <div
-        v-if="canRenderPage"
+        v-else-if="canRenderPage && reflowEnabled"
+        class="reader-page reader-reflow-page flex min-h-72 select-text flex-col items-center justify-center gap-4 text-center"
+      >
+        <p class="text-sm text-[#384c3d]">当前页没有可重排的文本，可能是扫描页或插图页。</p>
+        <Button variant="outline" size="sm" @click="showOriginalPage">查看原版页面</Button>
+      </div>
+      <div
+        v-else-if="canRenderPage"
         class="reader-zoom-stage"
         :style="{ height: `${iframeHeight * zoom}px` }"
       >
@@ -544,7 +610,7 @@ onBeforeUnmount(() => {
           </div>
         </div>
       </div>
-      <div v-else class="panel text-sm text-[#384c3d]">解析完成后将显示页面图片，请稍后刷新。</div>
+      <div v-else class="panel text-sm text-[#384c3d]">解析完成后将显示书页，请稍后刷新。</div>
     </main>
 
     <Transition name="reader-chrome">

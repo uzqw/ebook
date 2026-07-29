@@ -1,43 +1,40 @@
 # Relay Status: mobile-reflow
 
-- **State:** READY
-- **Last completed leg:** 0
-- **Next leg to run:** 1
-- **Finish line:** Mobile adaptive reflow meets every acceptance item in `charter.md`, is verified, documented in the packet, and committed without unrelated changes.
+- **State:** DONE
+- **Last completed leg:** 1
+- **Next leg to run:** none
+- **Finish line:** Met. Mobile adaptive reflow is implemented, tested, verified, documented, and committed without unrelated changes.
 
-## Leg 1 task
+## Completed result
 
-Audit and complete the existing uncommitted mobile reflow implementation as one independently verifiable change. Confirm it meets every charter finish-line item, make only necessary corrections, add or refine focused tests if needed, run the required frontend verification, and commit the relevant implementation plus relay packet updates. If all finish-line items are then met, mark this relay `DONE` and stop without spawning.
+- Viewports no wider than 768px default to reflow when no explicit preference is saved; wider viewports retain original-page mode.
+- Users can switch between reflow and original pages, with the explicit choice persisted in local storage.
+- Extracted CJK/Latin text is reconstructed into fluid headings and paragraphs with responsive spacing and font sizing.
+- Textless/scanned pages explain the limitation and offer a direct original-page action.
+- Original-page loading, zoom, navigation, progress saving, bookmarks, and notes remain intact; no regression was identified in audit or verification.
+- Focused reflow tests cover automatic/explicit layout selection, CJK and Latin joining, paragraph boundaries, headings, hyphenation, punctuation, and textless pages.
 
-## Minimum context for leg 1
+## Verification
 
-Read only:
+Passed under Node 22 with the user-required cnpm executable:
 
-- `charter.md`;
-- this status file;
-- `plan.md`, item 1 only;
-- `src/views/books/ReaderView.vue`;
-- `src/styles/main.css`;
-- `src/lib/reflow.ts`;
-- `src/lib/reflow.test.ts`;
-- `package.json` scripts when running verification.
+- `cnpm run format:check`
+- `cnpm run lint`
+- `cnpm run typecheck`
+- `cnpm test` — 2 files, 15 tests passed
+- `cnpm run build`
 
-Use targeted inspection of directly imported reader code only if a concrete issue requires it. Do not read `log.md` unless resolving a specific packet inconsistency.
+## Durable artifacts
 
-## Known state and blockers
+- `src/views/books/ReaderView.vue`
+- `src/styles/main.css`
+- `src/lib/reflow.ts`
+- `src/lib/reflow.test.ts`
+- `.pi-web/relays/mobile-reflow/status.md`
+- `.pi-web/relays/mobile-reflow/log.md`
 
-- Relevant implementation files are currently modified/untracked and intentionally left for leg 1 to audit and own.
-- `README.md` has a pre-existing unrelated modification. Do not edit, stage, commit, discard, or otherwise include it.
-- The `task` executable was unavailable in the relay setup environment. This does not block the frontend verification commands named in the charter; do not expand scope to install it.
+## Blockers and disposition
+
 - **Active blockers:** none.
-
-## Progress, verification, and commit requirements
-
-Before stopping or handing off, the runner must:
-
-1. Update this file with state, completed leg, next leg/task (if any), minimum next context, and blockers.
-2. Append one concise leg entry to `log.md`; never rewrite prior entries.
-3. Run `npm run format:check`, `npm run lint`, `npm run typecheck`, `npm test`, and `npm run build`.
-4. Inspect `git status`, then stage explicit relevant paths only. Never stage `README.md`.
-5. Create one focused commit containing the completed leg's source/tests and packet status/log updates.
-6. If `DONE` or `BLOCKED`, do not spawn. Otherwise call `spawn_session` exactly once as the final action.
+- The unrelated pre-existing `README.md` modification remains untouched and excluded.
+- Relay complete; stop without spawning another session.

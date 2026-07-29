@@ -282,6 +282,34 @@ select {
   background: #e5e7eb;
 }
 
+.reader-reflow-page {
+  min-height: min(720px, calc(100dvh - 9rem));
+  padding: clamp(2rem, 7vw, 4.5rem);
+  font-family: Georgia, 'EbookReaderCJK', 'Songti SC', SimSun, serif;
+  line-height: 1.9;
+  letter-spacing: 0.015em;
+  overflow-wrap: anywhere;
+}
+
+.reader-reflow-heading {
+  margin: 1.8em 0 1.2em;
+  color: #142217;
+  font-size: 1.45em;
+  font-weight: 800;
+  line-height: 1.4;
+  text-align: center;
+}
+
+.reader-reflow-heading:first-child {
+  margin-top: 0;
+}
+
+.reader-reflow-paragraph {
+  margin: 0 0 1em;
+  text-align: justify;
+  text-justify: inter-ideograph;
+}
+
 .reader-zoom-stage {
   width: 100%;
   margin-bottom: 24px;
@@ -341,6 +369,22 @@ select {
 .reader-scrim-enter-from,
 .reader-scrim-leave-to {
   opacity: 0;
+}
+
+@media (max-width: 640px) {
+  .reader-reflow-page {
+    min-height: calc(100dvh - 7rem);
+    padding: 2rem 1.35rem 3rem;
+    border-radius: 6px;
+    line-height: 1.85;
+    box-shadow: none;
+  }
+
+  .reader-reset-zoom,
+  .reader-zoom-value,
+  .reader-layout-label {
+    display: none;
+  }
 }
 
 /* Beautiful Book Cover Generator styles */
