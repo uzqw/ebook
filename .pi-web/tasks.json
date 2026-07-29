@@ -1,0 +1,70 @@
+{
+  "version": 1,
+  "tasks": [
+    {
+      "id": "repo.status",
+      "title": "Git Status",
+      "group": "Repository",
+      "description": "Show the current branch and concise working-tree status.",
+      "command": "git status --short --branch"
+    },
+    {
+      "id": "check.config",
+      "title": "Validate Configuration",
+      "group": "Checks",
+      "description": "Validate the platform manifest and merged Compose configuration.",
+      "command": "task config"
+    },
+    {
+      "id": "check.tests",
+      "title": "Run Tests",
+      "group": "Checks",
+      "description": "Run data-path, frontend, and backend tests.",
+      "command": "task test"
+    },
+    {
+      "id": "check.all",
+      "title": "Run All Checks",
+      "group": "Checks",
+      "description": "Run the project's complete ordered verification suite.",
+      "command": "task check"
+    },
+    {
+      "id": "deploy.status",
+      "title": "Deployment Status",
+      "group": "Runtime",
+      "description": "Show container and health status for the deployed application.",
+      "command": "data_path=\"$(./scripts/resolve-data-path.sh)\" && DOCKER_PB_DATA_PATH=\"$data_path\" docker compose -p ebook-reader-uzqw -f compose.yaml -f compose.build.yaml -f compose.observability.yaml ps"
+    },
+    {
+      "id": "app.health",
+      "title": "Health Check",
+      "group": "Runtime",
+      "description": "Check the configured frontend and PocketBase health endpoints.",
+      "command": "task status"
+    },
+    {
+      "id": "deploy.logs",
+      "title": "Recent Deployment Logs",
+      "group": "Runtime",
+      "description": "Show the latest 100 deployment log lines without following.",
+      "command": "task deploy:logs TAIL=100"
+    },
+    {
+      "id": "deploy.start",
+      "title": "Build and Deploy",
+      "group": "Lifecycle",
+      "description": "Run task deploy: verify, build, and start or recreate the deployment.",
+      "command": "task deploy",
+      "confirm": true
+    },
+    {
+      "id": "deploy.stop",
+      "title": "Stop Deployment Safely",
+      "group": "Lifecycle",
+      "description": "Stop the deployment without deleting persistent data or volumes.",
+      "command": "task deploy:down",
+      "confirm": true
+    }
+  ]
+}
