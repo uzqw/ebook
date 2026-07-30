@@ -375,8 +375,19 @@ select {
   .reader-column {
     padding-left: 0.35rem;
     padding-right: 0.35rem;
-    padding-top: 4.9rem;
+    padding-top: 4.35rem;
     padding-bottom: calc(6.5rem + env(safe-area-inset-bottom));
+  }
+
+  .reader-chrome--top {
+    flex-wrap: nowrap;
+    justify-content: space-between;
+    overflow: hidden;
+    padding: 0.35rem;
+  }
+
+  .reader-tools {
+    display: none;
   }
 
   .reader-reflow-page {
@@ -403,7 +414,9 @@ select {
 
   .reader-reset-zoom,
   .reader-zoom-value,
-  .reader-layout-label {
+  .reader-layout-label,
+  .reader-title,
+  .reader-status {
     display: none;
   }
 }

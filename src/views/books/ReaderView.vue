@@ -441,6 +441,9 @@ async function addNote() {
 watch(page, () => {
   scheduleSaveProgress()
   void loadPageHtml()
+  if (narrowViewport.value) {
+    window.scrollTo({ top: 0, left: 0, behavior: 'auto' })
+  }
   if (String(page.value) !== String(route.query.page || '')) {
     void router.replace({ query: { ...route.query, page: String(page.value) } })
   }
@@ -496,16 +499,17 @@ onBeforeUnmount(() => {
     <Transition name="reader-chrome">
       <header
         v-if="chromeVisible"
-        class="reader-chrome reader-chrome--top fixed left-1/2 top-3 z-40 flex w-[calc(100%-1.5rem)] max-w-5xl -translate-x-1/2 flex-nowrap items-center gap-x-1 gap-y-2 overflow-x-auto px-2 py-1.5 sm:flex-wrap sm:overflow-visible"
+        class="reader-chrome reader-chrome--top fixed left-1/2 top-3 z-40 flex w-[calc(100%-1.5rem)] max-w-5xl -translate-x-1/2 flex-wrap items-center gap-x-1 gap-y-2 px-2 py-1.5"
       >
         <Button variant="ghost" size="sm" @click="router.push('/books')"
           ><ArrowLeft data-icon="inline-start" />书架</Button
         >
-        <strong class="min-w-0 flex-1 truncate px-1 text-sm text-[#142217]">{{
+        <strong class="reader-title min-w-0 flex-1 truncate px-1 text-sm text-[#142217]">{{
           book?.title || '书籍阅读'
         }}</strong>
         <Badge
           v-if="book"
+          class="reader-status"
           :tone="
             book.parse_status === 'completed'
               ? 'green'
@@ -515,7 +519,7 @@ onBeforeUnmount(() => {
           "
           >{{ statusText(book.parse_status) }}</Badge
         >
-        <div class="flex items-center">
+        <div class="reader-tools flex items-center gap-1">
           <Button
             variant="ghost"
             size="sm"
@@ -567,18 +571,18 @@ onBeforeUnmount(() => {
             @click="resetZoom"
             ><RotateCcw data-icon="inline-start"
           /></Button>
+          <Button
+            variant="ghost"
+            size="sm"
+            :class="reflowEnabled ? 'bg-[#dcebdc]' : ''"
+            :aria-pressed="reflowEnabled"
+            :title="reflowEnabled ? '切换到原版页面' : '切换到自适应排版'"
+            @click="toggleLayoutMode"
+            ><BookOpenText data-icon="inline-start" /><span class="reader-layout-label">{{
+              reflowEnabled ? '自适应' : '原版'
+            }}</span></Button
+          >
         </div>
-        <Button
-          variant="ghost"
-          size="sm"
-          :class="reflowEnabled ? 'bg-[#dcebdc]' : ''"
-          :aria-pressed="reflowEnabled"
-          :title="reflowEnabled ? '切换到原版页面' : '切换到自适应排版'"
-          @click="toggleLayoutMode"
-          ><BookOpenText data-icon="inline-start" /><span class="reader-layout-label">{{
-            reflowEnabled ? '自适应' : '原版'
-          }}</span></Button
-        >
         <div class="flex items-center gap-1">
           <Button
             variant="ghost"
