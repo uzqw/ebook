@@ -48,6 +48,21 @@ function joinLines(left: string, right: string) {
   return `${left} ${right}`
 }
 
+function hasSyntheticLineSpacing(lines: string[]) {
+  const contentIndexes = lines.flatMap((line, index) => (line.trim() ? [index] : []))
+  if (contentIndexes.length < 3) return false
+
+  let singleBlankGaps = 0
+  for (let index = 1; index < contentIndexes.length; index++) {
+    if (contentIndexes[index] - contentIndexes[index - 1] === 2) singleBlankGaps++
+  }
+
+  // MuPDF's EPUB extraction commonly emits `visual line\n\nvisual line` for
+  // almost every rendered line. Those empty lines are layout artifacts, not
+  // paragraph boundaries, and preserving them cuts sentences into fragments.
+  return singleBlankGaps / (contentIndexes.length - 1) >= 0.75
+}
+
 /**
  * Turns fixed-page text extraction into fluid paragraphs. Blank lines and
  * indented lines remain paragraph boundaries; visual line wraps are joined so
@@ -57,6 +72,7 @@ export function reflowText(rawText?: string): ReflowBlock[] {
   if (!rawText?.trim()) return []
 
   const lines = rawText.replace(/\r\n?/g, '\n').replace(/\f/g, '\n\n').split('\n')
+  const syntheticLineSpacing = hasSyntheticLineSpacing(lines)
   const blocks: ReflowBlock[] = []
   let paragraph = ''
 
@@ -69,7 +85,7 @@ export function reflowText(rawText?: string): ReflowBlock[] {
   for (const sourceLine of lines) {
     const text = sourceLine.trim()
     if (!text) {
-      flushParagraph()
+      if (!syntheticLineSpacing) flushParagraph()
       continue
     }
 
