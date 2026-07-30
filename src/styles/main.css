@@ -372,12 +372,33 @@ select {
 }
 
 @media (max-width: 640px) {
+  .reader-column {
+    padding-left: 0.35rem;
+    padding-right: 0.35rem;
+    padding-top: 4.9rem;
+    padding-bottom: calc(6.5rem + env(safe-area-inset-bottom));
+  }
+
   .reader-reflow-page {
     min-height: calc(100dvh - 7rem);
-    padding: 2rem 1.35rem 3rem;
+    padding: 2rem 1.2rem 3rem;
     border-radius: 6px;
     line-height: 1.85;
     box-shadow: none;
+    touch-action: pan-y;
+  }
+
+  .reader-chrome--top {
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+  }
+
+  .reader-chrome--top::-webkit-scrollbar {
+    display: none;
+  }
+
+  .reader-chrome--bottom {
+    bottom: calc(0.5rem + env(safe-area-inset-bottom));
   }
 
   .reader-reset-zoom,

@@ -75,6 +75,58 @@ const pageHtmlLoading = ref(false)
 let pageHtmlRequestId = 0
 
 const chromeVisible = ref(true)
+const pageViewport = ref<HTMLElement | null>(null)
+let touchStartX = 0
+let touchStartY = 0
+
+function isInteractiveReaderTarget(target: EventTarget | null) {
+  const el = target as HTMLElement | null
+  return !!el?.closest('a, button, input, textarea, select, aside, .reader-chrome')
+}
+
+function toggleChrome() {
+  chromeVisible.value = !chromeVisible.value
+}
+
+function handlePageTap(event: MouseEvent) {
+  if (!narrowViewport.value || isInteractiveReaderTarget(event.target)) return
+  if (!window.getSelection()?.isCollapsed) return
+
+  const bounds = pageViewport.value?.getBoundingClientRect()
+  if (!bounds) return
+  const relativeX = (event.clientX - bounds.left) / Math.max(bounds.width, 1)
+  if (relativeX < 0.22) {
+    prev()
+  } else if (relativeX > 0.78) {
+    next()
+  } else {
+    toggleChrome()
+  }
+}
+
+function onTouchStart(event: TouchEvent) {
+  if (!narrowViewport.value || isInteractiveReaderTarget(event.target)) return
+  const touch = event.changedTouches[0]
+  if (!touch) return
+  touchStartX = touch.clientX
+  touchStartY = touch.clientY
+}
+
+function onTouchEnd(event: TouchEvent) {
+  if (!narrowViewport.value || isInteractiveReaderTarget(event.target)) return
+  const touch = event.changedTouches[0]
+  if (!touch) return
+
+  const deltaX = touch.clientX - touchStartX
+  const deltaY = touch.clientY - touchStartY
+  if (Math.abs(deltaX) < 64 || Math.abs(deltaX) <= Math.abs(deltaY) * 1.25) return
+  event.preventDefault()
+  if (deltaX < 0) {
+    next()
+  } else {
+    prev()
+  }
+}
 
 interface TocDisplayItem {
   title: string
@@ -176,6 +228,7 @@ function initialPage() {
 }
 
 function updateChromeVisibility(clientY: number) {
+  if (narrowViewport.value) return
   if (activeSidePanel.value) {
     chromeVisible.value = true
     return
@@ -188,18 +241,19 @@ function updateChromeVisibility(clientY: number) {
   }
 }
 function onSectionMousemove(event: MouseEvent) {
+  if (narrowViewport.value) return
   updateChromeVisibility(event.clientY)
 }
 function onFrameMousemove(event: MouseEvent) {
+  if (narrowViewport.value) return
   const rect = readerFrame.value?.getBoundingClientRect()
   if (!rect) return
   const clientY = rect.top + event.clientY
   updateChromeVisibility(clientY)
 }
 function onWindowMouseLeave() {
-  if (!activeSidePanel.value) {
-    chromeVisible.value = false
-  }
+  if (narrowViewport.value || activeSidePanel.value) return
+  chromeVisible.value = false
 }
 
 async function load() {
@@ -308,6 +362,7 @@ function zoomOut() {
   zoom.value = Math.max(1, Number((zoom.value - 0.25).toFixed(2)))
 }
 function onSectionClick(event: MouseEvent) {
+  if (narrowViewport.value) return
   const target = event.target as HTMLElement
   if (
     target.closest('.reader-page') ||
@@ -441,7 +496,7 @@ onBeforeUnmount(() => {
     <Transition name="reader-chrome">
       <header
         v-if="chromeVisible"
-        class="reader-chrome reader-chrome--top fixed left-1/2 top-3 z-40 flex w-[calc(100%-1.5rem)] max-w-5xl -translate-x-1/2 flex-wrap items-center gap-x-1 gap-y-2 px-2 py-1.5"
+        class="reader-chrome reader-chrome--top fixed left-1/2 top-3 z-40 flex w-[calc(100%-1.5rem)] max-w-5xl -translate-x-1/2 flex-nowrap items-center gap-x-1 gap-y-2 overflow-x-auto px-2 py-1.5 sm:flex-wrap sm:overflow-visible"
       >
         <Button variant="ghost" size="sm" @click="router.push('/books')"
           ><ArrowLeft data-icon="inline-start" />书架</Button
@@ -559,7 +614,14 @@ onBeforeUnmount(() => {
       </div>
     </div>
 
-    <main v-else-if="book" class="reader-column px-3 pb-32 pt-20">
+    <main
+      ref="pageViewport"
+      v-else-if="book"
+      class="reader-column px-3 pb-32 pt-20"
+      @touchstart.passive="onTouchStart"
+      @touchend="onTouchEnd"
+      @click="handlePageTap"
+    >
       <div v-if="book.parse_status !== 'completed'" class="panel mb-4 text-sm text-[#384c3d]">
         解析尚未完成。若刚上传，请稍后刷新；失败时可查看书籍信息里的错误。
       </div>
@@ -616,7 +678,7 @@ onBeforeUnmount(() => {
     <Transition name="reader-chrome">
       <div
         v-if="chromeVisible && book && !loading"
-        class="reader-chrome reader-chrome--bottom fixed bottom-4 left-1/2 z-40 flex -translate-x-1/2 items-center gap-1.5 px-2 py-1.5"
+        class="reader-chrome reader-chrome--bottom fixed bottom-[calc(1rem+env(safe-area-inset-bottom))] left-1/2 z-40 flex -translate-x-1/2 items-center gap-1.5 px-2 py-1.5"
       >
         <Button
           variant="ghost"
