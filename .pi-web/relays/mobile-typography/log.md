@@ -86,3 +86,21 @@ numbered sections (`3.1.2 …`, `5. 不要有单点`) render as body paragraphs.
 - **Artifacts:** `src/lib/reflow.ts`, `src/lib/reflow.test.ts`, status.md,
   log.md. One focused commit.
 - **Handoff:** spawn leg 3 (final regression audit and finish, plan item 3).
+
+## Leg 3 — final regression audit and finish (plan item 3)
+
+- **Audit:** verified every charter finish-line item.
+  - Headings: spot-checked real pages through `reflowText()` (blob books
+    `5tdudhh3ei0bdc4`, `mgbrm9gxutqeayb`, `k7jfw2ne4auy9zk` plus
+    well-behaved `s8gcisy3gxy79l5` p60/p61, `wcopgxn7rlu1e7k` p10/p11) —
+    headings emitted on title pages, rendered as `h2.reader-reflow-heading`.
+  - Paragraphs: every audited page segments into multiple blocks; none
+    renders as one undifferentiated blob.
+  - Regression: legs 1–2 changed only `src/lib/reflow.ts` + its tests;
+    `reflowBlocks` renders only under `reflowEnabled`, so original-page
+    mode, navigation, progress, bookmarks, notes are untouched.
+  - Commits: `b2fec30` (leg 1), `4d23b70` (leg 2) confirmed focused.
+- **Checks:** 17/17 reflow tests, `cnpm run format:check`, `lint`,
+  `typecheck`, `test` (24/24), `build` — all green under NVM Node 22.
+- **Artifacts:** status.md, log.md only (no code change needed).
+- **Stop:** relay marked DONE; no further legs spawned.
