@@ -82,7 +82,7 @@ describe('reflowText', () => {
         kind: 'paragraph',
         text: '例如支付系统是 0 级系统，而优惠券是 1 级系统的话，在极端情况下可以把优惠券给降级，防止支付系统被优惠券这个 1 级系统给拖垮。',
       },
-      { kind: 'paragraph', text: '5. 不要有单点' },
+      { kind: 'heading', text: '5. 不要有单点' },
       {
         kind: 'paragraph',
         text: '系统中的单点可以说是系统架构上的一个大忌，因为单点意味着没有备份，风险不可控，我们设计分布式系统最重要的原则就是“消除单点”。',
@@ -127,5 +127,72 @@ describe('reflowText', () => {
 
   it('returns no blocks when a scanned page has no extracted text', () => {
     expect(reflowText(' \n\f ')).toEqual([])
+  })
+
+  it('detects ALL-CAPS and plain English book titles as headings', () => {
+    expect(
+      reflowText(
+        'The Power of Now\n\n' +
+          'PAST PAIN: DISSOLVING THE PAIN-BODY\n\n' +
+          'As long as you are unable to access the power of the Now,\n' +
+          'every emotional pain that you experience leaves behind a residue\n' +
+          'of pain that lives on in you.',
+      ),
+    ).toEqual([
+      { kind: 'heading', text: 'The Power of Now' },
+      { kind: 'heading', text: 'PAST PAIN: DISSOLVING THE PAIN-BODY' },
+      {
+        kind: 'paragraph',
+        text: 'As long as you are unable to access the power of the Now, every emotional pain that you experience leaves behind a residue of pain that lives on in you.',
+      },
+    ])
+  })
+
+  it('detects an ALL-CAPS section heading mid-page', () => {
+    expect(
+      reflowText(
+        'As day faded into night, a series of machines kept me alive.\n\n' +
+          'MY RECOVERY\n\n' +
+          'Mercifully, by the next morning I was breathing on my own.',
+      ),
+    ).toEqual([
+      {
+        kind: 'paragraph',
+        text: 'As day faded into night, a series of machines kept me alive.',
+      },
+      { kind: 'heading', text: 'MY RECOVERY' },
+      {
+        kind: 'paragraph',
+        text: 'Mercifully, by the next morning I was breathing on my own.',
+      },
+    ])
+  })
+
+  it('detects numbered section headings in CJK and English text', () => {
+    expect(
+      reflowText(
+        '向上去努力，但也要考虑平衡其他因素。\n' +
+          '3.1.2 不同场景下的不同架构案例\n' +
+          '前面我说了一些架构上的原则，那么针对“秒杀”这个场景，怎样才是一个好的架构\n' +
+          '呢？',
+      ),
+    ).toEqual([
+      { kind: 'paragraph', text: '向上去努力，但也要考虑平衡其他因素。' },
+      { kind: 'heading', text: '3.1.2 不同场景下的不同架构案例' },
+      {
+        kind: 'paragraph',
+        text: '前面我说了一些架构上的原则，那么针对“秒杀”这个场景，怎样才是一个好的架构呢？',
+      },
+    ])
+  })
+
+  it('keeps ordinary short body lines as paragraphs', () => {
+    expect(reflowText('3.5 million people attended the event')).toEqual([
+      { kind: 'paragraph', text: '3.5 million people attended the event' },
+    ])
+    expect(reflowText('Watch out for any sign of unhappiness')).toEqual([
+      { kind: 'paragraph', text: 'Watch out for any sign of unhappiness' },
+    ])
+    expect(reflowText('OK')).toEqual([{ kind: 'paragraph', text: 'OK' }])
   })
 })

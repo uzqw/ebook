@@ -51,3 +51,38 @@ numbered sections (`3.1.2 …`, `5. 不要有单点`) render as body paragraphs.
 `cnpm run build` all green under NVM Node 22.
 
 **Handoff.** Spawning leg 2 (heading detection) per plan item 2.
+
+## Leg 2 — heading detection for real book titles
+
+- **Task (from status):** fix `headingPattern` missing real title formats, so
+  titles render as headings instead of body paragraphs (plan item 2).
+- **Did:** extended `isHeading()` in `src/lib/reflow.ts` with three detectors
+  alongside the original pattern:
+  - Numbered sections (`5. 不要有单点`, `3.1.2 不同场景下的不同架构案例`):
+    digits + dots/、, remainder must open with CJK or uppercase Latin, no
+    sentence-final punctuation, ≤40 chars. Checked per source line, so the
+    heading is isolated even when leg-1 inference would not split there.
+  - ALL-CAPS English titles (`MY RECOVERY`, `PAST PAIN: DISSOLVING THE
+    PAIN-BODY`): no lowercase, no CJK, ≤60 chars, ≥2 words or ≥4 letters.
+  - Plain title-case English titles (`The Power of Now`): ≤50 chars, no
+    ending sentence punctuation, ≥2 capitalized words and >50% of words
+    capitalized. Applied only to standalone flushed blocks
+    (`allowTitleCase`), never per source line — a capitalized fragment
+    mid-paragraph like "Fluid Latin text ..." must stay body text.
+- **False-positive guards:** "3.5 million people attended the event"
+  (lowercase remainder after number), "Watch out for any sign of
+  unhappiness" (1 of 7 words capitalized), "OK" (single short word), and CJK
+  lines containing Latin acronyms (excluded from ALL-CAPS) all stay
+  paragraphs. Existing test expecting `5. 不要有单点` as paragraph updated
+  to heading.
+- **Verified against real extracted pages** (`.local/pb_data/data.db`, via a
+  temporary scratch vitest file, deleted after the run): `s8gcisy3gxy79l5`
+  p60 → `The Power of Now` + `PAST PAIN: DISSOLVING THE PAIN-BODY` headings,
+  clean paragraphs; `k7jfw2ne4auy9zk` p15 → exactly `5. 不要有单点` and
+  `3.1.2 不同场景下的不同架构案例` as headings; `wcopgxn7rlu1e7k` p10 →
+  `MY RECOVERY` heading, no false positives in body text.
+- **Checks:** 17/17 reflow tests, `cnpm run format:check`, `lint`,
+  `typecheck`, `test` (24), `build` — all green under NVM Node 22.
+- **Artifacts:** `src/lib/reflow.ts`, `src/lib/reflow.test.ts`, status.md,
+  log.md. One focused commit.
+- **Handoff:** spawn leg 3 (final regression audit and finish, plan item 3).

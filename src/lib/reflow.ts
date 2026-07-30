@@ -19,6 +19,8 @@ export function resolveLayoutMode(
 
 const headingPattern =
   /^(?:第[零〇一二三四五六七八九十百千万两\d]+[章节卷篇部回]|(?:chapter|part|section|book)\s+[\wivxlcdm]+|序(?:章|言)?|前言|引言|楔子|尾声|后记|目录)(?:\s|$|[：:])/i
+const numberedSectionPattern = /^(?:\d{1,3}(?:\.\d{1,3})+|\d{1,3}(?:\.\d{1,3})*[.、])\s*(.+)$/
+const capitalizedWordPattern = /^[^A-Za-z]*[A-Z]/
 const cjkPattern = /[\u3040-\u30ff\u3400-\u9fff\uac00-\ud7af]/
 const fullWidthPattern =
   /[\u1100-\u11ff\u2e80-\u303f\u3040-\u30ff\u3400-\u9fff\uf900-\ufaff\uff00-\uffef]/
@@ -27,8 +29,59 @@ const sentenceContinuationPattern = /[-,，、;；:：]$/
 const noSpaceBeforePattern = /^[,.;:!?，。！？；：、）】」』》”’]/
 const noSpaceAfterPattern = /[(（【「『《“‘—]$/
 
-function isHeading(text: string) {
-  return text.length <= 80 && headingPattern.test(text)
+function isHeading(text: string, { allowTitleCase = false } = {}) {
+  return (
+    (text.length <= 80 && headingPattern.test(text)) ||
+    isNumberedSectionHeading(text) ||
+    isAllCapsHeading(text) ||
+    (allowTitleCase && isTitleCaseHeading(text))
+  )
+}
+
+// Numbered sections such as "5. 不要有单点" or "3.1.2 不同场景下的不同架构案例".
+// The remainder must open like a title (CJK or uppercase Latin) and the line
+// must not end with sentence punctuation, so wrapped sentences opening with a
+// quantity ("3.5 million people ...") stay body text.
+function isNumberedSectionHeading(text: string) {
+  if (
+    text.length > 40 ||
+    paragraphEndPattern.test(text) ||
+    sentenceContinuationPattern.test(text)
+  ) {
+    return false
+  }
+  const match = numberedSectionPattern.exec(text)
+  return !!match && /^[A-Z\u2e80-\u9fff\uff00-\uffef]/.test(match[1])
+}
+
+// ALL-CAPS English titles like "MY RECOVERY". CJK lines and anything with
+// lowercase letters are excluded; several letters or multiple words are
+// required so interjections like "OK" never qualify.
+function isAllCapsHeading(text: string) {
+  if (text.length > 60 || cjkPattern.test(text) || /[a-z]/.test(text)) return false
+  const letters = text.match(/[A-Z]/g)?.length ?? 0
+  if (letters < 2) return false
+  return text.split(/\s+/).length >= 2 || letters >= 4
+}
+
+// Plain English titles like "The Power of Now": short, no sentence-final
+// punctuation, mostly capitalized words. Only applied to standalone blocks —
+// a capitalized sentence fragment mid-paragraph ("Fluid Latin text ...")
+// must stay body text.
+function isTitleCaseHeading(text: string) {
+  if (
+    text.length < 3 ||
+    text.length > 50 ||
+    cjkPattern.test(text) ||
+    paragraphEndPattern.test(text) ||
+    sentenceContinuationPattern.test(text)
+  ) {
+    return false
+  }
+  const words = text.split(/\s+/).filter((word) => /[A-Za-z]/.test(word))
+  if (words.length < 2) return false
+  const capitalized = words.filter((word) => capitalizedWordPattern.test(word)).length
+  return capitalized >= 2 && capitalized / words.length > 0.5
 }
 
 function joinLines(left: string, right: string) {
@@ -106,7 +159,11 @@ export function reflowText(rawText?: string): ReflowBlock[] {
 
   const flushParagraph = () => {
     const text = paragraph.trim()
-    if (text) blocks.push({ text, kind: isHeading(text) ? 'heading' : 'paragraph' })
+    if (text)
+      blocks.push({
+        text,
+        kind: isHeading(text, { allowTitleCase: true }) ? 'heading' : 'paragraph',
+      })
     paragraph = ''
   }
 
