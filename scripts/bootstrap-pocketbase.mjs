@@ -1,4 +1,5 @@
 import fs from 'node:fs'
+import os from 'node:os'
 import path from 'node:path'
 import { execFile } from 'node:child_process'
 import { promisify } from 'node:util'
@@ -30,7 +31,15 @@ const config = {
     process.env.POCKETBASE_URL_INTERNAL ||
     `http://${process.env.POCKETBASE_HOST || '127.0.0.1'}:${process.env.POCKETBASE_PORT || '8090'}`,
   pbBin: process.env.PB_BIN || path.join(cwd, 'backend', 'ebook-pocketbase'),
-  pbDataDir: process.env.POCKETBASE_DATA_DIR || path.join('.local', 'pb_data'),
+  pbDataDir:
+    process.env.POCKETBASE_DATA_DIR ||
+    path.join(
+      process.env.XDG_DATA_HOME || path.join(os.homedir(), '.local', 'share'),
+      'uzqw',
+      'apps',
+      'ebook-reader',
+      'pb_data',
+    ),
   superuserEmail: process.env.PB_SUPERUSER_EMAIL || 'admin@reader.local',
   superuserPassword: process.env.PB_SUPERUSER_PASSWORD || 'ebook-reader-admin-123',
   appUserName: process.env.APP_USER_NAME || 'Reader Demo User',

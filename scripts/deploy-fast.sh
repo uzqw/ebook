@@ -5,10 +5,13 @@ project=ebook-reader-uzqw
 service=ebook-reader-uzqw
 
 data_path=$(./scripts/resolve-data-path.sh)
-builder_cache_path=${DOCKER_BUILDER_CACHE_PATH:-./.local/docker-build-cache}
+app_data_dir=$(dirname -- "$data_path")
+builder_cache_path=${DOCKER_BUILDER_CACHE_PATH:-$app_data_dir/docker-build-cache}
+go_build_cache=${GO_BUILD_CACHE_PATH:-$app_data_dir/go-build-cache}
 
-mkdir -p "$data_path/tmp" "$builder_cache_path"
-chmod 0750 "$data_path" "$builder_cache_path"
+mkdir -p "$data_path/tmp" "$builder_cache_path" "$go_build_cache"
+chmod 0750 "$data_path"
+chmod 0750 "$builder_cache_path" "$go_build_cache" 2>/dev/null || true
 chmod 1777 "$data_path/tmp"
 
 if ! docker network inspect cicd-observability >/dev/null 2>&1; then
@@ -42,11 +45,10 @@ if [ -n "$container" ] && \
 
   printf '%s\n' 'fast-deploy: building frontend and backend'
   npm run build
-  mkdir -p .local/go-build-cache
   (
     cd backend
-    GOCACHE="$PWD/../.local/go-build-cache" CGO_ENABLED=0 GOOS=linux go build -tags nocgo \
-      -o "$backend_out" ./cmd/ebook-pocketbase
+    GOCACHE="$go_build_cache" CGO_ENABLED=1 GOOS=linux go build -trimpath \
+      -ldflags='-s -w -extldflags "-static"' -o "$backend_out" ./cmd/ebook-pocketbase
   )
 
   if command -v rsync >/dev/null 2>&1; then
