@@ -7,6 +7,13 @@ import type {
   ReadingRecord,
 } from '@/types/models'
 
+export interface PageIllustration {
+  top: number
+  width: number
+  height: number
+  src: string
+}
+
 const requireUser = () => {
   const user = currentUser()
   if (!user) throw new Error('Not authenticated')
@@ -69,7 +76,33 @@ export const booksApi = {
     return pb.files.getURL(book, book.file)
   },
   pageImageUrl(bookId: string, page: number) {
-    return `${pb.baseUrl}/api/books/${bookId}/pages/${page}/image?token=${encodeURIComponent(pb.authStore.token)}`
+    return `${pb.baseUrl}/api/books/${bookId}/pages/${page}/image`
+  },
+  async fetchPageImage(bookId: string, page: number, retry = true): Promise<Blob> {
+    const response = await fetch(this.pageImageUrl(bookId, page), {
+      headers: { Authorization: `Bearer ${pb.authStore.token}` },
+    })
+    if (response.status === 401 && retry) {
+      await pb.collection('users').authRefresh()
+      return this.fetchPageImage(bookId, page, false)
+    }
+    if (!response.ok) throw new Error(`页面图片加载失败: ${response.status}`)
+    return response.blob()
+  },
+  async fetchPageIllustrations(
+    bookId: string,
+    page: number,
+    retry = true,
+  ): Promise<PageIllustration[]> {
+    const response = await fetch(`${pb.baseUrl}/api/books/${bookId}/pages/${page}/illustrations`, {
+      headers: { Authorization: `Bearer ${pb.authStore.token}` },
+    })
+    if (response.status === 401 && retry) {
+      await pb.collection('users').authRefresh()
+      return this.fetchPageIllustrations(bookId, page, false)
+    }
+    if (!response.ok) throw new Error(`页面插图加载失败: ${response.status}`)
+    return response.json()
   },
   pageHtmlUrl(bookId: string, page: number) {
     return `${pb.baseUrl}/api/books/${bookId}/pages/${page}/html`

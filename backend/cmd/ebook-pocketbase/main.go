@@ -3,8 +3,11 @@ package main
 import (
 	"archive/zip"
 	"bytes"
+	"encoding/base64"
 	"encoding/xml"
 	"fmt"
+	"image"
+	"image/color"
 	"image/png"
 	"io"
 	"log"
@@ -1488,6 +1491,145 @@ func renderPagePNG(app core.App, svc *pdfService, book *core.Record, pageNumber 
 	return out, err
 }
 
+type pageIllustration struct {
+	Top    float64 `json:"top"`
+	Width  int     `json:"width"`
+	Height int     `json:"height"`
+	Src    string  `json:"src"`
+}
+
+func bitmapPNG(instance pdfium.Pdfium, bitmap responses.FPDFImageObj_GetRenderedBitmap) ([]byte, int, int, error) {
+	format, err := instance.FPDFBitmap_GetFormat(&requests.FPDFBitmap_GetFormat{Bitmap: bitmap.Bitmap})
+	if err != nil {
+		return nil, 0, 0, err
+	}
+	width, err := instance.FPDFBitmap_GetWidth(&requests.FPDFBitmap_GetWidth{Bitmap: bitmap.Bitmap})
+	if err != nil {
+		return nil, 0, 0, err
+	}
+	height, err := instance.FPDFBitmap_GetHeight(&requests.FPDFBitmap_GetHeight{Bitmap: bitmap.Bitmap})
+	if err != nil {
+		return nil, 0, 0, err
+	}
+	stride, err := instance.FPDFBitmap_GetStride(&requests.FPDFBitmap_GetStride{Bitmap: bitmap.Bitmap})
+	if err != nil {
+		return nil, 0, 0, err
+	}
+	buffer, err := instance.FPDFBitmap_GetBuffer(&requests.FPDFBitmap_GetBuffer{Bitmap: bitmap.Bitmap})
+	if err != nil {
+		return nil, 0, 0, err
+	}
+
+	channels := 4
+	if format.Format == enums.FPDF_BITMAP_FORMAT_GRAY {
+		channels = 1
+	} else if format.Format == enums.FPDF_BITMAP_FORMAT_BGR {
+		channels = 3
+	}
+	if width.Width < 1 || height.Height < 1 || stride.Stride < width.Width*channels || len(buffer.Buffer) < stride.Stride*height.Height {
+		return nil, 0, 0, fmt.Errorf("invalid illustration bitmap")
+	}
+
+	img := image.NewNRGBA(image.Rect(0, 0, width.Width, height.Height))
+	for y := 0; y < height.Height; y++ {
+		for x := 0; x < width.Width; x++ {
+			offset := y*stride.Stride + x*channels
+			pixel := color.NRGBA{A: 255}
+			if channels == 1 {
+				pixel.R, pixel.G, pixel.B = buffer.Buffer[offset], buffer.Buffer[offset], buffer.Buffer[offset]
+			} else {
+				pixel.B, pixel.G, pixel.R = buffer.Buffer[offset], buffer.Buffer[offset+1], buffer.Buffer[offset+2]
+				if format.Format == enums.FPDF_BITMAP_FORMAT_BGRA {
+					pixel.A = buffer.Buffer[offset+3]
+				}
+			}
+			img.SetNRGBA(x, y, pixel)
+		}
+	}
+	out := bytes.NewBuffer(nil)
+	if err := png.Encode(out, img); err != nil {
+		return nil, 0, 0, err
+	}
+	return out.Bytes(), width.Width, height.Height, nil
+}
+
+func extractPageIllustrations(svc *pdfService, pdfBytes []byte, pageNumber int) ([]pageIllustration, error) {
+	illustrations := []pageIllustration{}
+	err := svc.withParsedDocument(pdfBytes, func(instance pdfium.Pdfium, docRef any, pageCount int) error {
+		if pageNumber < 1 || pageNumber > pageCount {
+			return fmt.Errorf("page %d out of range 1-%d", pageNumber, pageCount)
+		}
+		document := docRef.(requests.PageByIndex).Document
+		page := requests.Page{ByIndex: &requests.PageByIndex{Document: document, Index: pageNumber - 1}}
+		pageSize, err := instance.GetPageSize(&requests.GetPageSize{Page: page})
+		if err != nil {
+			return err
+		}
+		count, err := instance.FPDFPage_CountObjects(&requests.FPDFPage_CountObjects{Page: page})
+		if err != nil {
+			return err
+		}
+		for index := 0; index < count.Count; index++ {
+			object, err := instance.FPDFPage_GetObject(&requests.FPDFPage_GetObject{Page: page, Index: index})
+			if err != nil {
+				continue
+			}
+			objectType, err := instance.FPDFPageObj_GetType(&requests.FPDFPageObj_GetType{PageObject: object.PageObject})
+			if err != nil || objectType.Type != enums.FPDF_PAGEOBJ_IMAGE {
+				continue
+			}
+			bounds, err := instance.FPDFPageObj_GetBounds(&requests.FPDFPageObj_GetBounds{PageObject: object.PageObject})
+			if err != nil || bounds.Right-bounds.Left < 20 || bounds.Top-bounds.Bottom < 20 {
+				continue
+			}
+			var imageBytes []byte
+			var mimeType string
+			var width, height int
+			raw, rawErr := instance.FPDFImageObj_GetImageDataRaw(&requests.FPDFImageObj_GetImageDataRaw{ImageObject: object.PageObject})
+			pixelSize, sizeErr := instance.FPDFImageObj_GetImagePixelSize(&requests.FPDFImageObj_GetImagePixelSize{ImageObject: object.PageObject})
+			if rawErr == nil && sizeErr == nil {
+				mimeType = http.DetectContentType(raw.Data)
+				if strings.HasPrefix(mimeType, "image/") {
+					imageBytes = raw.Data
+					width, height = int(pixelSize.Width), int(pixelSize.Height)
+				}
+			}
+			if len(imageBytes) == 0 {
+				bitmap, err := instance.FPDFImageObj_GetRenderedBitmap(&requests.FPDFImageObj_GetRenderedBitmap{Document: document, Page: page, ImageObject: object.PageObject})
+				if err != nil {
+					continue
+				}
+				imageBytes, width, height, err = bitmapPNG(instance, *bitmap)
+				_, _ = instance.FPDFBitmap_Destroy(&requests.FPDFBitmap_Destroy{Bitmap: bitmap.Bitmap})
+				if err != nil {
+					continue
+				}
+				mimeType = "image/png"
+			}
+			if width < 32 || height < 32 {
+				continue
+			}
+			top := float64(pageSize.Height-float64(bounds.Top)) / pageSize.Height
+			illustrations = append(illustrations, pageIllustration{
+				Top:    max(0, min(1, top)),
+				Width:  width,
+				Height: height,
+				Src:    "data:" + mimeType + ";base64," + base64.StdEncoding.EncodeToString(imageBytes),
+			})
+		}
+		return nil
+	})
+	return illustrations, err
+}
+
+func renderPageIllustrations(app core.App, svc *pdfService, book *core.Record, pageNumber int) ([]pageIllustration, error) {
+	pdfBytes, err := recordPDFBytes(app, book)
+	if err != nil {
+		return nil, err
+	}
+	return extractPageIllustrations(svc, pdfBytes, pageNumber)
+}
+
 func authTokenFromHTTPRequest(req *http.Request) string {
 	authorization := strings.TrimSpace(req.Header.Get("Authorization"))
 	if len(authorization) > len("Bearer ") && strings.EqualFold(authorization[:len("Bearer ")], "Bearer ") {
@@ -1559,6 +1701,36 @@ func registerRoutes(app core.App, svc *pdfService) {
 				}
 			}
 			return re.Blob(http.StatusOK, "image/png", pngBytes)
+		})
+
+		e.Router.GET("/api/books/{id}/pages/{page}/illustrations", func(re *core.RequestEvent) error {
+			token := authTokenFromRequest(re)
+			if token == "" {
+				return re.UnauthorizedError("missing auth token", nil)
+			}
+			auth, err := app.FindAuthRecordByToken(token, core.TokenTypeAuth)
+			if err != nil {
+				return re.UnauthorizedError("invalid auth token", nil)
+			}
+			book, err := app.FindRecordById("books", re.Request.PathValue("id"))
+			if err != nil {
+				return re.NotFoundError("book not found", nil)
+			}
+			if book.GetString("user") != auth.Id {
+				return re.ForbiddenError("not your book", nil)
+			}
+			pageNumber, err := strconv.Atoi(re.Request.PathValue("page"))
+			if err != nil {
+				return re.BadRequestError("invalid page", nil)
+			}
+			if strings.ToLower(filepath.Ext(book.GetString("file"))) != ".pdf" {
+				return re.JSON(http.StatusOK, []pageIllustration{})
+			}
+			illustrations, err := renderPageIllustrations(app, svc, book, pageNumber)
+			if err != nil {
+				return re.InternalServerError(err.Error(), nil)
+			}
+			return re.JSON(http.StatusOK, illustrations)
 		})
 
 		e.Router.GET("/api/books/{id}/pages/{page}/html", func(re *core.RequestEvent) error {
