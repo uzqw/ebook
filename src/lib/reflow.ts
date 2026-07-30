@@ -20,6 +20,10 @@ export function resolveLayoutMode(
 const headingPattern =
   /^(?:第[零〇一二三四五六七八九十百千万两\d]+[章节卷篇部回]|(?:chapter|part|section|book)\s+[\wivxlcdm]+|序(?:章|言)?|前言|引言|楔子|尾声|后记|目录)(?:\s|$|[：:])/i
 const cjkPattern = /[\u3040-\u30ff\u3400-\u9fff\uac00-\ud7af]/
+const fullWidthPattern =
+  /[\u1100-\u11ff\u2e80-\u303f\u3040-\u30ff\u3400-\u9fff\uf900-\ufaff\uff00-\uffef]/
+const paragraphEndPattern = /[.!?。！？…][）)】」』》"'’”]?$/
+const sentenceContinuationPattern = /[-,，、;；:：]$/
 const noSpaceBeforePattern = /^[,.;:!?，。！？；：、）】」』》”’]/
 const noSpaceAfterPattern = /[(（【「『《“‘—]$/
 
@@ -48,6 +52,23 @@ function joinLines(left: string, right: string) {
   return `${left} ${right}`
 }
 
+function displayWidth(text: string) {
+  let width = 0
+  for (const char of text) width += fullWidthPattern.test(char) ? 1 : 0.5
+  return width
+}
+
+// Justified books fill every visual line to the right margin except each
+// paragraph's final line. When extraction supplies no paragraph markers, a
+// noticeably short line is the only segmentation signal left. Lines ending
+// in a hyphen or comma continue on the next line, so they never close a
+// paragraph.
+function endsParagraphLine(text: string, maxLineWidth: number) {
+  if (!maxLineWidth || sentenceContinuationPattern.test(text)) return false
+  const ratio = displayWidth(text) / maxLineWidth
+  return ratio <= 0.7 && (ratio <= 0.45 || paragraphEndPattern.test(text))
+}
+
 function hasSyntheticLineSpacing(lines: string[]) {
   const contentIndexes = lines.flatMap((line, index) => (line.trim() ? [index] : []))
   if (contentIndexes.length < 3) return false
@@ -66,13 +87,20 @@ function hasSyntheticLineSpacing(lines: string[]) {
 /**
  * Turns fixed-page text extraction into fluid paragraphs. Blank lines and
  * indented lines remain paragraph boundaries; visual line wraps are joined so
- * the browser can wrap them again for the current viewport.
+ * the browser can wrap them again for the current viewport. When extraction
+ * provides no paragraph markers at all (PDF pages without blank lines, or
+ * EPUB pages with a synthetic blank after every visual line), paragraph-final
+ * short lines become the boundaries instead.
  */
 export function reflowText(rawText?: string): ReflowBlock[] {
   if (!rawText?.trim()) return []
 
-  const lines = rawText.replace(/\r\n?/g, '\n').replace(/\f/g, '\n\n').split('\n')
+  const lines = rawText.trim().replace(/\r\n?/g, '\n').replace(/\f/g, '\n\n').split('\n')
   const syntheticLineSpacing = hasSyntheticLineSpacing(lines)
+  const inferParagraphBreaks = syntheticLineSpacing || lines.every((line) => line.trim())
+  const maxLineWidth = inferParagraphBreaks
+    ? Math.max(0, ...lines.filter((line) => line.trim()).map((line) => displayWidth(line.trim())))
+    : 0
   const blocks: ReflowBlock[] = []
   let paragraph = ''
 
@@ -98,6 +126,7 @@ export function reflowText(rawText?: string): ReflowBlock[] {
     const startsParagraph = /^[\t ]{2,}|^\u3000+/.test(sourceLine)
     if (startsParagraph) flushParagraph()
     paragraph = joinLines(paragraph, text)
+    if (inferParagraphBreaks && endsParagraphLine(text, maxLineWidth)) flushParagraph()
   }
   flushParagraph()
 
