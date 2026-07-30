@@ -49,7 +49,11 @@ if [ -n "$container" ] && \
       -o "$backend_out" ./cmd/ebook-pocketbase
   )
 
-  cp -a dist/. "$stage_dir/frontend/"
+  if command -v rsync >/dev/null 2>&1; then
+    rsync -a --delete --checksum dist/ "$stage_dir/frontend/"
+  else
+    cp -a dist/. "$stage_dir/frontend/"
+  fi
   chmod 0755 "$backend_out"
 
   printf '%s\n' 'fast-deploy: updating runtime artifacts'
@@ -59,7 +63,11 @@ if [ -n "$container" ] && \
   fi
   mv "$stage_dir" "$release_dir"
   mkdir -p "$app_dir"
-  cp -a "$release_dir/frontend/." "$app_dir/"
+  if command -v rsync >/dev/null 2>&1; then
+    rsync -a --delete --checksum "$release_dir/frontend/" "$app_dir/"
+  else
+    cp -a "$release_dir/frontend/." "$app_dir/"
+  fi
 
   printf '%s\n' 'fast-deploy: restarting container'
   docker restart "$container" >/dev/null

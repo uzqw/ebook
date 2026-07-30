@@ -39,6 +39,44 @@ Default local backend address:
 http://127.0.0.1:8090
 ```
 
+### Internal HTTPS certificate
+
+The deployed `https://${PLATFORM_HOST}:18094` endpoint uses Caddy's internal CA.
+Every client must trust the gateway's **root CA**; merely bypassing the browser
+warning for one leaf certificate is not sufficient. Caddy rotates its default
+12-hour leaf certificates, and an untrusted replacement makes in-page requests
+fail with `Failed to fetch` until a top-level navigation handles the certificate
+again.
+
+For the local platform deployment, download the public root certificate over the
+non-TLS gateway endpoint, install it in the client operating system, and restart
+the browser:
+
+```bash
+curl http://${PLATFORM_HOST}:18089/caddy-local-root.crt \
+  -o caddy-local-root.crt
+```
+
+Install it on Arch/Manjaro Linux:
+
+```bash
+sudo trust anchor --store caddy-local-root.crt
+sudo update-ca-trust
+```
+
+Or on Debian/Ubuntu Linux:
+
+```bash
+sudo install -m 0644 caddy-local-root.crt \
+  /usr/local/share/ca-certificates/caddy-local-root.crt
+sudo update-ca-certificates
+```
+
+Fully quit and reopen the browser after changing the trust store. See the
+platform `ACCESS.md` for macOS, Fedora/RHEL, Chrome/Chromium NSS, and Firefox
+instructions. Preserve the platform Caddy data directory; replacing it creates
+a new root CA that must be installed on every client again.
+
 ## Features
 
 - PocketBase-based authentication and file storage.
