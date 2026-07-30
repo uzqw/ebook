@@ -85,6 +85,11 @@ assert(!caddySource.includes('cicd-uzqw'), 'Caddy source references the cicd rep
 assert(!/\b10(?:\.\d{1,3}){3}\b/.test(caddySource), 'Caddy source contains a fixed host IP')
 
 const fixtureDataPath = path.join(tmpdir(), 'ebook-reader-config-check', 'pb_data')
+const fixtureBuilderCachePath = path.join(
+  tmpdir(),
+  'ebook-reader-config-check',
+  'docker-build-cache',
+)
 const compose = spawnSync(
   'docker',
   [
@@ -104,7 +109,11 @@ const compose = spawnSync(
   {
     cwd: repoRoot,
     encoding: 'utf8',
-    env: { ...process.env, DOCKER_PB_DATA_PATH: fixtureDataPath },
+    env: {
+      ...process.env,
+      DOCKER_PB_DATA_PATH: fixtureDataPath,
+      DOCKER_BUILDER_CACHE_PATH: fixtureBuilderCachePath,
+    },
   },
 )
 assert(compose.status === 0, `Compose config failed: ${compose.stderr.trim()}`)
@@ -124,5 +133,11 @@ const dataMount = composeService.volumes?.find((volume) => volume.target === '/a
 assert(dataMount, 'Compose PocketBase data mount is required')
 equal(dataMount.type, 'bind', 'Compose PocketBase volume.type')
 equal(dataMount.source, fixtureDataPath, 'Compose PocketBase volume.source')
+const builderCacheMount = composeService.volumes?.find(
+  (volume) => volume.target === '/pi-build-cache',
+)
+assert(builderCacheMount, 'Compose builder cache mount is required')
+equal(builderCacheMount.type, 'bind', 'Compose builder cache volume.type')
+equal(builderCacheMount.source, fixtureBuilderCachePath, 'Compose builder cache volume.source')
 
 console.log('PASS config validation')

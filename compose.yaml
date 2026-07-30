@@ -6,6 +6,7 @@ services:
     #   - "${DOCKER_HOST_PORT:-18094}:18093"
     volumes:
       - ${DOCKER_PB_DATA_PATH:-./.local/pb_data}:/app/pb_data
+      - ${DOCKER_BUILDER_CACHE_PATH:-./.local/docker-build-cache}:/pi-build-cache
     environment:
       TZ: ${TZ:-${HOST_TZ:-UTC}}
       POCKETBASE_HOST: 0.0.0.0

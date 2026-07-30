@@ -127,8 +127,9 @@ tasks:
     cmds:
       - npm run build
       - |
+        mkdir -p .local/go-build-cache
         cd backend
-        CGO_ENABLED=0 GOOS=linux go build -tags nocgo \
+        GOCACHE="$PWD/../.local/go-build-cache" CGO_ENABLED=0 GOOS=linux go build -tags nocgo \
           -o ebook-pocketbase ./cmd/ebook-pocketbase
 
   config:
@@ -153,8 +154,9 @@ tasks:
       - task check
       - |
         data_path="$(./scripts/resolve-data-path.sh)"
-        mkdir -p "$data_path/tmp"
-        chmod 0750 "$data_path"
+        builder_cache_path="${DOCKER_BUILDER_CACHE_PATH:-./.local/docker-build-cache}"
+        mkdir -p "$data_path/tmp" "$builder_cache_path"
+        chmod 0750 "$data_path" "$builder_cache_path"
         chmod 1777 "$data_path/tmp"
         if ! docker network inspect cicd-observability >/dev/null 2>&1; then
           printf '%s\n' \
@@ -162,10 +164,12 @@ tasks:
           exit 3
         fi
         DOCKER_PB_DATA_PATH="$data_path" \
+          DOCKER_BUILDER_CACHE_PATH="$builder_cache_path" \
           docker compose -p ebook-reader-uzqw \
           -f compose.yaml -f compose.build.yaml \
           -f compose.observability.yaml config --quiet
         DOCKER_PB_DATA_PATH="$data_path" \
+          DOCKER_BUILDER_CACHE_PATH="$builder_cache_path" \
           docker compose -p ebook-reader-uzqw \
           -f compose.yaml -f compose.build.yaml \
           -f compose.observability.yaml up -d --build --force-recreate
@@ -175,7 +179,9 @@ tasks:
     cmds:
       - |
         data_path="$(./scripts/resolve-data-path.sh)"
+        builder_cache_path="${DOCKER_BUILDER_CACHE_PATH:-./.local/docker-build-cache}"
         DOCKER_PB_DATA_PATH="$data_path" \
+          DOCKER_BUILDER_CACHE_PATH="$builder_cache_path" \
           docker compose -p ebook-reader-uzqw \
           -f compose.yaml -f compose.build.yaml \
           -f compose.observability.yaml down
@@ -185,9 +191,11 @@ tasks:
     cmds:
       - |
         data_path="$(./scripts/resolve-data-path.sh)"
+        builder_cache_path="${DOCKER_BUILDER_CACHE_PATH:-./.local/docker-build-cache}"
         follow_arg=
         [ "${FOLLOW:-0}" != 1 ] || follow_arg=--follow
         DOCKER_PB_DATA_PATH="$data_path" \
+          DOCKER_BUILDER_CACHE_PATH="$builder_cache_path" \
           docker compose -p ebook-reader-uzqw \
           -f compose.yaml -f compose.build.yaml \
           -f compose.observability.yaml logs \
