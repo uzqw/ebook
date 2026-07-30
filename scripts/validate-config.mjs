@@ -84,6 +84,16 @@ assert(caddySource.includes('reverse_proxy ebook-reader-uzqw:18093'), 'Caddy ups
 assert(!caddySource.includes('cicd-uzqw'), 'Caddy source references the cicd repository')
 assert(!/\b10(?:\.\d{1,3}){3}\b/.test(caddySource), 'Caddy source contains a fixed host IP')
 
+const entrypointSource = readFileSync(path.join(repoRoot, 'scripts/docker-entrypoint.sh'), 'utf8')
+for (const needle of [
+  'PB_FRONTEND_DIR',
+  'PB_BACKEND_BIN',
+  'PUBLIC_DIR="$PB_FRONTEND_DIR"',
+  'PB_BIN="$PB_BACKEND_BIN"',
+]) {
+  assert(entrypointSource.includes(needle), `entrypoint is missing ${needle}`)
+}
+
 const fixtureDataPath = path.join(tmpdir(), 'ebook-reader-config-check', 'pb_data')
 const fixtureBuilderCachePath = path.join(
   tmpdir(),

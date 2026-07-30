@@ -138,7 +138,7 @@ tasks:
       - node scripts/validate-config.mjs
 
   check:
-    desc: Run ordered, side-effect-free frontend project checks
+    desc: Run ordered, side-effect-free project checks
     cmds:
       - task doctor MODE=ci
       - task fmt:check
@@ -149,9 +149,19 @@ tasks:
       - task config
 
   deploy:
+    desc: Deploy incremental frontend/backend changes
+    cmds:
+      - ./scripts/deploy-fast.sh
+
+  deploy:verify:
     desc: Check and deploy the application with Compose v2
     cmds:
       - task check
+      - task deploy:image
+
+  deploy:image:
+    desc: Build the application image and start it with Compose v2
+    cmds:
       - |
         data_path="$(./scripts/resolve-data-path.sh)"
         builder_cache_path="${DOCKER_BUILDER_CACHE_PATH:-./.local/docker-build-cache}"

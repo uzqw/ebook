@@ -5,6 +5,8 @@
 .omx
 node_modules
 backend/pb_data
+dist
+backend/ebook-pocketbase
 logs
 *.log
 *.pdf
