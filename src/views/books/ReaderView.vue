@@ -12,6 +12,7 @@ import {
   ListTree,
   Loader2,
   NotebookPen,
+  Palette,
   RefreshCw,
   RotateCcw,
   X,
@@ -19,7 +20,7 @@ import {
   ZoomOut,
 } from '@lucide/vue'
 import { bookmarksApi, booksApi, notesApi, pagesApi, readingApi } from '@/services/api'
-import { installCachedCjkFont } from '@/services/font-cache'
+import type { PageIllustration } from '@/services/api'
 import { parseLayoutPreference, reflowText, resolveLayoutMode } from '@/lib/reflow'
 import type { LayoutPreference } from '@/lib/reflow'
 import type {
@@ -48,6 +49,29 @@ const loading = ref(true)
 const error = ref('')
 const ZOOM_STORAGE_KEY = 'ebook-reader-zoom'
 const LAYOUT_STORAGE_KEY = 'ebook-reader-layout'
+const THEME_STORAGE_KEY = 'ebook-reader-theme'
+
+type ReaderTheme = 'paper' | 'ink' | 'midnight' | 'coffee' | 'oled'
+interface ReaderThemeOption {
+  id: ReaderTheme
+  name: string
+  description: string
+  page: string
+  text: string
+}
+
+const readerThemes: ReaderThemeOption[] = [
+  { id: 'paper', name: '纸张', description: '明亮', page: '#ffffff', text: '#142217' },
+  { id: 'ink', name: '墨夜', description: '柔和黑', page: '#1b211d', text: '#dbe5dc' },
+  { id: 'midnight', name: '深海', description: '深蓝', page: '#131c2b', text: '#dbe7f4' },
+  { id: 'coffee', name: '夜棕', description: '暖棕', page: '#29201b', text: '#eadaca' },
+  { id: 'oled', name: '纯黑', description: '省电', page: '#050505', text: '#d8d8d8' },
+]
+
+function storedReaderTheme(): ReaderTheme {
+  const value = window.localStorage.getItem(THEME_STORAGE_KEY)
+  return readerThemes.some((theme) => theme.id === value) ? (value as ReaderTheme) : 'paper'
+}
 
 function storedZoom() {
   const value = Number(window.localStorage.getItem(ZOOM_STORAGE_KEY))
@@ -64,15 +88,24 @@ const effectiveLayoutMode = computed(() =>
 )
 const reflowEnabled = computed(() => effectiveLayoutMode.value === 'reflow')
 const zoom = ref(storedZoom())
+const readerTheme = ref<ReaderTheme>(storedReaderTheme())
+const themeMenuOpen = ref(false)
 const startedAt = Date.now()
 const parsePollTimer = ref<number | null>(null)
 const canAutoSave = ref(false)
 const saveTimer = ref<number | null>(null)
 const saveQueued = ref(false)
-const readerFrame = ref<HTMLIFrameElement | null>(null)
-const pageHtml = ref('')
-const pageHtmlLoading = ref(false)
-let pageHtmlRequestId = 0
+const pageImageUrl = ref('')
+const pageImageLoading = ref(false)
+const pageIllustrations = ref<PageIllustration[]>([])
+const illustrationsLoading = ref(false)
+const expandedImage = ref('')
+const expandedImageScale = ref(1)
+const expandedImageWidth = ref(0)
+let pinchStartDistance = 0
+let pinchStartScale = 1
+let pageImageRequestId = 0
+let illustrationsRequestId = 0
 
 const chromeVisible = ref(true)
 const pageViewport = ref<HTMLElement | null>(null)
@@ -86,6 +119,43 @@ function isInteractiveReaderTarget(target: EventTarget | null) {
 
 function toggleChrome() {
   chromeVisible.value = !chromeVisible.value
+}
+
+function openExpandedImage(src: string) {
+  expandedImage.value = src
+  expandedImageScale.value = 1
+  expandedImageWidth.value = Math.min(1100, window.innerWidth - 32)
+}
+
+function closeExpandedImage() {
+  expandedImage.value = ''
+  pinchStartDistance = 0
+}
+
+function touchDistance(touches: TouchList) {
+  const x = touches[0].clientX - touches[1].clientX
+  const y = touches[0].clientY - touches[1].clientY
+  return Math.hypot(x, y)
+}
+
+function onImageTouchStart(event: TouchEvent) {
+  if (event.touches.length !== 2) return
+  event.preventDefault()
+  pinchStartDistance = touchDistance(event.touches)
+  pinchStartScale = expandedImageScale.value
+}
+
+function onImageTouchMove(event: TouchEvent) {
+  if (event.touches.length !== 2 || !pinchStartDistance) return
+  event.preventDefault()
+  expandedImageScale.value = Math.min(
+    5,
+    Math.max(1, pinchStartScale * (touchDistance(event.touches) / pinchStartDistance)),
+  )
+}
+
+function onImageTouchEnd(event: TouchEvent) {
+  if (event.touches.length < 2) pinchStartDistance = 0
 }
 
 function handlePageTap(event: MouseEvent) {
@@ -136,48 +206,75 @@ interface TocDisplayItem {
 
 const currentPage = computed(() => pages.value.find((item) => item.page_number === page.value))
 const reflowBlocks = computed(() => reflowText(currentPage.value?.text))
+const reflowItems = computed(() => {
+  const count = reflowBlocks.value.length
+  return [
+    ...reflowBlocks.value.map((block, index) => ({ ...block, order: (index + 1) / (count + 1) })),
+    ...pageIllustrations.value.map((image, index) => ({
+      kind: 'image' as const,
+      image,
+      order: image.top + index / 10000,
+    })),
+  ].sort((a, b) => a.order - b.order)
+})
 const pageCount = computed(() => book.value?.page_count || pages.value.length || 1)
 const canRenderPage = computed(() => book.value?.parse_status === 'completed')
-const iframeHeight = ref(800)
-function handleMessage(event: MessageEvent) {
-  if (event.data && event.data.type === 'ebook-reader-page-height') {
-    iframeHeight.value = event.data.height
-  }
+const pageImageHeight = ref(800)
+function clearPageImage() {
+  if (pageImageUrl.value) URL.revokeObjectURL(pageImageUrl.value)
+  pageImageUrl.value = ''
 }
-async function applyCachedFontToFrame() {
-  const frame = readerFrame.value
-  const doc = frame?.contentDocument
-  if (!frame || !doc) return
-  doc.addEventListener('mousemove', onFrameMousemove)
-  doc.addEventListener('keydown', onGlobalKeydown)
-  try {
-    await installCachedCjkFont(doc, true)
-    window.setTimeout(() => frame.contentWindow?.dispatchEvent(new Event('resize')), 0)
-  } catch (err) {
-    error.value = err instanceof Error ? err.message : '字体加载失败'
-  }
-}
-async function loadPageHtml() {
-  const requestId = ++pageHtmlRequestId
+async function loadPageImage() {
+  const requestId = ++pageImageRequestId
   const currentBook = book.value
   if (!canRenderPage.value || !currentBook || reflowEnabled.value) {
-    pageHtml.value = ''
-    pageHtmlLoading.value = false
+    clearPageImage()
+    pageImageLoading.value = false
     return
   }
-  pageHtmlLoading.value = true
+  pageImageLoading.value = true
   error.value = ''
   try {
-    const html = await booksApi.fetchPageHtml(currentBook.id, page.value)
-    if (requestId === pageHtmlRequestId) pageHtml.value = html
+    const blob = await booksApi.fetchPageImage(currentBook.id, page.value)
+    if (requestId === pageImageRequestId) {
+      clearPageImage()
+      pageImageUrl.value = URL.createObjectURL(blob)
+    }
   } catch (err) {
-    if (requestId === pageHtmlRequestId) {
-      pageHtml.value = ''
+    if (requestId === pageImageRequestId) {
+      clearPageImage()
       error.value = err instanceof Error ? err.message : '页面加载失败'
     }
   } finally {
-    if (requestId === pageHtmlRequestId) pageHtmlLoading.value = false
+    if (requestId === pageImageRequestId) pageImageLoading.value = false
   }
+}
+async function loadPageIllustrations() {
+  const requestId = ++illustrationsRequestId
+  const currentBook = book.value
+  if (!canRenderPage.value || !currentBook || !reflowEnabled.value) {
+    pageIllustrations.value = []
+    illustrationsLoading.value = false
+    return
+  }
+  illustrationsLoading.value = true
+  try {
+    const images = await booksApi.fetchPageIllustrations(currentBook.id, page.value)
+    if (requestId === illustrationsRequestId) pageIllustrations.value = images
+  } catch (err) {
+    if (requestId === illustrationsRequestId) {
+      pageIllustrations.value = []
+      error.value = err instanceof Error ? err.message : '页面插图加载失败'
+    }
+  } finally {
+    if (requestId === illustrationsRequestId) illustrationsLoading.value = false
+  }
+}
+async function loadPageMedia() {
+  await Promise.all([loadPageImage(), loadPageIllustrations()])
+}
+function onPageImageLoad(event: Event) {
+  pageImageHeight.value = (event.currentTarget as HTMLImageElement).clientHeight
 }
 const tocItems = computed<TocDisplayItem[]>(() => {
   const result: TocDisplayItem[] = []
@@ -244,13 +341,6 @@ function onSectionMousemove(event: MouseEvent) {
   if (narrowViewport.value) return
   updateChromeVisibility(event.clientY)
 }
-function onFrameMousemove(event: MouseEvent) {
-  if (narrowViewport.value) return
-  const rect = readerFrame.value?.getBoundingClientRect()
-  if (!rect) return
-  const clientY = rect.top + event.clientY
-  updateChromeVisibility(clientY)
-}
 function onWindowMouseLeave() {
   if (narrowViewport.value || activeSidePanel.value) return
   chromeVisible.value = false
@@ -275,7 +365,7 @@ async function load() {
     bookmarks.value = await bookmarksApi.list(props.id)
     notes.value = await notesApi.list(props.id)
     page.value = initialPage()
-    await loadPageHtml()
+    await loadPageMedia()
     if (book.value.parse_status === 'pending' || book.value.parse_status === 'processing') {
       parsePollTimer.value = window.setInterval(async () => {
         try {
@@ -289,7 +379,7 @@ async function load() {
             pages.value = await pagesApi.list(props.id)
             bookmarks.value = await bookmarksApi.list(props.id)
             notes.value = await notesApi.list(props.id)
-            await loadPageHtml()
+            await loadPageMedia()
           }
         } catch (err) {
           error.value = err instanceof Error ? err.message : '刷新解析状态失败'
@@ -328,6 +418,10 @@ function isEditableTarget(target: EventTarget | null) {
   )
 }
 function onGlobalKeydown(event: KeyboardEvent) {
+  if (event.key === 'Escape' && expandedImage.value) {
+    closeExpandedImage()
+    return
+  }
   if (event.key === 'Escape' && activeSidePanel.value) {
     activeSidePanel.value = null
     return
@@ -346,6 +440,10 @@ function toggleSidePanel(panel: 'index' | 'bookmarks' | 'notes') {
 }
 function resetZoom() {
   zoom.value = 1
+}
+function selectReaderTheme(theme: ReaderTheme) {
+  readerTheme.value = theme
+  themeMenuOpen.value = false
 }
 function toggleLayoutMode() {
   layoutPreference.value = reflowEnabled.value ? 'original' : 'reflow'
@@ -440,7 +538,8 @@ async function addNote() {
 
 watch(page, () => {
   scheduleSaveProgress()
-  void loadPageHtml()
+  closeExpandedImage()
+  if (!loading.value) void loadPageMedia()
   if (narrowViewport.value) {
     window.scrollTo({ top: 0, left: 0, behavior: 'auto' })
   }
@@ -451,8 +550,11 @@ watch(page, () => {
 watch(zoom, (value) => {
   window.localStorage.setItem(ZOOM_STORAGE_KEY, String(value))
 })
+watch(readerTheme, (value) => {
+  window.localStorage.setItem(THEME_STORAGE_KEY, value)
+})
 watch(effectiveLayoutMode, () => {
-  void loadPageHtml()
+  void loadPageMedia()
 })
 watch(activeSidePanel, (panel) => {
   if (panel) {
@@ -466,11 +568,12 @@ function onViewportChange(event: MediaQueryListEvent) {
 onMounted(() => {
   void load()
   narrowViewportQuery.addEventListener('change', onViewportChange)
-  window.addEventListener('message', handleMessage)
   window.addEventListener('keydown', onGlobalKeydown)
   window.addEventListener('mouseleave', onWindowMouseLeave)
 })
 onBeforeUnmount(() => {
+  pageImageRequestId += 1
+  illustrationsRequestId += 1
   if (parsePollTimer.value !== null) window.clearInterval(parsePollTimer.value)
   if (saveTimer.value !== null) window.clearTimeout(saveTimer.value)
   if (saveQueued.value) {
@@ -479,14 +582,19 @@ onBeforeUnmount(() => {
     })
   }
   narrowViewportQuery.removeEventListener('change', onViewportChange)
-  window.removeEventListener('message', handleMessage)
+  clearPageImage()
   window.removeEventListener('keydown', onGlobalKeydown)
   window.removeEventListener('mouseleave', onWindowMouseLeave)
 })
 </script>
 
 <template>
-  <section class="min-h-dvh select-none" @mousemove="onSectionMousemove" @click="onSectionClick">
+  <section
+    class="reader-surface min-h-dvh select-none"
+    :data-reader-theme="readerTheme"
+    @mousemove="onSectionMousemove"
+    @click="onSectionClick"
+  >
     <div
       v-if="error"
       role="alert"
@@ -507,6 +615,16 @@ onBeforeUnmount(() => {
         <strong class="reader-title min-w-0 flex-1 truncate px-1 text-sm text-[#142217]">{{
           book?.title || '书籍阅读'
         }}</strong>
+        <Button
+          variant="ghost"
+          size="sm"
+          class="reader-theme-trigger px-2 md:hidden"
+          title="阅读主题"
+          aria-label="选择阅读主题"
+          :aria-expanded="themeMenuOpen"
+          @click="themeMenuOpen = !themeMenuOpen"
+          ><Palette data-icon="inline-start"
+        /></Button>
         <Badge
           v-if="book"
           class="reader-status"
@@ -612,6 +730,34 @@ onBeforeUnmount(() => {
       </header>
     </Transition>
 
+    <Transition name="reader-chrome">
+      <div
+        v-if="themeMenuOpen && narrowViewport"
+        class="reader-chrome reader-theme-menu fixed left-1/2 top-[4.25rem] z-50 grid w-[calc(100%-1.5rem)] -translate-x-1/2 grid-cols-5 gap-1.5 p-2"
+        role="group"
+        aria-label="阅读主题"
+      >
+        <button
+          v-for="theme in readerThemes"
+          :key="theme.id"
+          type="button"
+          class="reader-theme-option"
+          :class="{ 'reader-theme-option--active': readerTheme === theme.id }"
+          :aria-pressed="readerTheme === theme.id"
+          @click="selectReaderTheme(theme.id)"
+        >
+          <span
+            class="reader-theme-swatch"
+            :style="{ background: theme.page, color: theme.text }"
+            aria-hidden="true"
+            >文</span
+          >
+          <strong>{{ theme.name }}</strong>
+          <small>{{ theme.description }}</small>
+        </button>
+      </div>
+    </Transition>
+
     <div v-if="loading" class="reader-column px-3 pt-24">
       <div class="panel flex items-center gap-2 text-[#384c3d]">
         <Loader2 class="size-4 animate-spin" />正在打开书籍...
@@ -630,18 +776,33 @@ onBeforeUnmount(() => {
         解析尚未完成。若刚上传，请稍后刷新；失败时可查看书籍信息里的错误。
       </div>
       <article
-        v-if="canRenderPage && reflowEnabled && reflowBlocks.length"
+        v-if="canRenderPage && reflowEnabled && (reflowItems.length || illustrationsLoading)"
         class="reader-page reader-reflow-page select-text"
         :style="{
           fontSize: `clamp(${16 * zoom}px, calc(${14 * zoom}px + 1vw), ${18 * zoom}px)`,
         }"
       >
-        <template v-for="(block, index) in reflowBlocks" :key="`${block.kind}-${index}`">
-          <h2 v-if="block.kind === 'heading'" class="reader-reflow-heading">
-            {{ block.text }}
+        <template v-for="(item, index) in reflowItems" :key="`${item.kind}-${index}`">
+          <button
+            v-if="item.kind === 'image'"
+            type="button"
+            class="reader-reflow-image"
+            aria-label="放大查看书中插图"
+            @click.stop="openExpandedImage(item.image.src)"
+          >
+            <img :src="item.image.src" alt="书中插图" />
+          </button>
+          <h2 v-else-if="item.kind === 'heading'" class="reader-reflow-heading">
+            {{ item.text }}
           </h2>
-          <p v-else class="reader-reflow-paragraph">{{ block.text }}</p>
+          <p v-else class="reader-reflow-paragraph">{{ item.text }}</p>
         </template>
+        <div
+          v-if="illustrationsLoading"
+          class="flex items-center justify-center gap-2 py-4 text-sm"
+        >
+          <Loader2 class="size-4 animate-spin" />正在加载插图...
+        </div>
       </article>
       <div
         v-else-if="canRenderPage && reflowEnabled"
@@ -653,24 +814,24 @@ onBeforeUnmount(() => {
       <div
         v-else-if="canRenderPage"
         class="reader-zoom-stage"
-        :style="{ height: `${iframeHeight * zoom}px` }"
+        :style="{ height: `${pageImageHeight * zoom}px` }"
       >
         <div
           class="reader-page reader-image-frame"
           :style="{ transform: `scale(${zoom})`, transformOrigin: 'top center' }"
         >
-          <iframe
-            ref="readerFrame"
-            :srcdoc="pageHtml"
-            title="书页内容"
-            sandbox="allow-scripts allow-same-origin"
-            class="w-full border-0 bg-white"
-            :style="{ height: iframeHeight + 'px' }"
-            @load="applyCachedFontToFrame"
-          ></iframe>
+          <button
+            v-if="pageImageUrl"
+            type="button"
+            class="block w-full"
+            aria-label="放大查看原页图片"
+            @click.stop="openExpandedImage(pageImageUrl)"
+          >
+            <img :src="pageImageUrl" alt="原页图片" @load="onPageImageLoad" />
+          </button>
           <div
-            v-if="pageHtmlLoading"
-            class="absolute inset-0 z-10 flex items-center justify-center gap-2 bg-white/75 text-sm font-semibold text-[#384c3d]"
+            v-if="pageImageLoading"
+            class="absolute inset-0 z-10 flex min-h-72 items-center justify-center gap-2 bg-white/75 text-sm font-semibold text-[#384c3d]"
           >
             <Loader2 class="size-4 animate-spin" />正在加载页面...
           </div>
@@ -678,6 +839,37 @@ onBeforeUnmount(() => {
       </div>
       <div v-else class="panel text-sm text-[#384c3d]">解析完成后将显示书页，请稍后刷新。</div>
     </main>
+
+    <Transition name="reader-scrim">
+      <div
+        v-if="expandedImage"
+        class="reader-image-lightbox fixed inset-0 z-[60] overflow-auto bg-black/90 p-4"
+        role="dialog"
+        aria-modal="true"
+        aria-label="图片预览"
+        @click="closeExpandedImage"
+      >
+        <button
+          type="button"
+          class="fixed right-4 top-4 z-10 rounded-full bg-black/70 p-3 text-white"
+          aria-label="关闭图片预览"
+          @click="closeExpandedImage"
+        >
+          <X class="size-6" />
+        </button>
+        <img
+          :src="expandedImage"
+          alt="放大的书中图片"
+          class="mx-auto max-w-none rounded-lg"
+          :style="{ width: `${expandedImageWidth * expandedImageScale}px` }"
+          @click.stop
+          @touchstart.stop="onImageTouchStart"
+          @touchmove.stop="onImageTouchMove"
+          @touchend.stop="onImageTouchEnd"
+          @touchcancel.stop="onImageTouchEnd"
+        />
+      </div>
+    </Transition>
 
     <Transition name="reader-chrome">
       <div
@@ -731,7 +923,7 @@ onBeforeUnmount(() => {
     <Transition name="reader-drawer">
       <aside
         v-if="activeSidePanel"
-        class="fixed inset-y-0 right-0 z-50 flex w-[min(340px,92vw)] select-text flex-col border-l border-[#cbe0bf] bg-[#f8faf4] p-4 shadow-2xl"
+        class="reader-side-panel fixed inset-y-0 right-0 z-50 flex w-[min(340px,92vw)] select-text flex-col border-l border-[#cbe0bf] bg-[#f8faf4] p-4 shadow-2xl"
       >
         <div class="mb-3 flex items-center justify-between gap-2">
           <h2 class="font-extrabold text-[#142217]">{{ sidePanelTitle }}</h2>
