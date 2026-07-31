@@ -99,10 +99,13 @@ const canAutoSave = ref(false)
 const saveTimer = ref<number | null>(null)
 const saveQueued = ref(false)
 const readerFrame = ref<HTMLIFrameElement | null>(null)
+const rawPageHtml = ref('')
 const pageHtml = ref('')
 const pageHtmlLoading = ref(false)
 const pageBackdropUrl = ref('')
+const staleBackdropUrls: string[] = []
 let backdropRequestId = 0
+let mediaRequestId = 0
 const pageIllustrations = ref<PageIllustration[]>([])
 const illustrationsLoading = ref(false)
 const imagePreviewEl = ref<HTMLImageElement | null>(null)
@@ -236,32 +239,35 @@ async function applyCachedFontToFrame() {
   } catch (err) {
     error.value = err instanceof Error ? err.message : '字体加载失败'
   }
-  injectPageBackdrop()
 }
 function clearPageBackdrop() {
-  if (pageBackdropUrl.value) URL.revokeObjectURL(pageBackdropUrl.value)
+  // Do not revoke yet: the iframe may still show the previous page until the
+  // new document is composed. Revoke after the swap to avoid a blank flash.
+  if (pageBackdropUrl.value) staleBackdropUrls.push(pageBackdropUrl.value)
   pageBackdropUrl.value = ''
+}
+function revokeStaleBackdrops() {
+  while (staleBackdropUrls.length) URL.revokeObjectURL(staleBackdropUrls.pop()!)
 }
 // PDF.js-style text layer: the rendered page PNG supplies every visual
 // (vector table rules, decorative glyphs, embedded subset fonts that MuPDF
 // HTML cannot express) while the invisible text runs stay selectable.
-function injectPageBackdrop() {
-  const doc = readerFrame.value?.contentDocument
+// The invisible runs use fallback fonts, so selection shows only the
+// highlight band; rendering the glyphs would expose the drift.
+function composePageDocument() {
+  const html = rawPageHtml.value
+  if (!html) return ''
   const url = pageBackdropUrl.value
-  if (!doc || !url) return
-  doc.getElementById('reader-backdrop-style')?.remove()
-  const style = doc.createElement('style')
-  style.id = 'reader-backdrop-style'
-  style.textContent = `
-div[id^="page"] { background: #fff url("${url}") no-repeat top left / 100% 100%; }
-div[id^="page"] p, div[id^="page"] p * { color: transparent !important; }
-/* The invisible text runs are laid out with fallback fonts, so their glyphs
-   never align with the rendered page exactly. Show only the highlight band
-   while selecting; showing the glyphs would expose the drift. */
-div[id^="page"] ::selection { color: transparent; background: rgba(50, 100, 220, 0.35); }
-div[id^="page"] img { opacity: 0; z-index: 5; }
-`
-  doc.head.appendChild(style)
+  if (!url) return html
+  const style =
+    '<style id="reader-backdrop-style">\n' +
+    `div[id^="page"] { background: #fff url("${url}") no-repeat top left / 100% 100%; }\n` +
+    'div[id^="page"] p, div[id^="page"] p * { color: transparent !important; }\n' +
+    'div[id^="page"] ::selection { color: transparent; background: rgba(50, 100, 220, 0.35); }\n' +
+    'div[id^="page"] img { opacity: 0; z-index: 5; }\n' +
+    '</style>'
+  const idx = html.indexOf('</head>')
+  return idx === -1 ? style + html : html.slice(0, idx) + style + html.slice(idx)
 }
 async function loadPageBackdrop() {
   const requestId = ++backdropRequestId
@@ -275,7 +281,6 @@ async function loadPageBackdrop() {
     if (requestId === backdropRequestId) {
       clearPageBackdrop()
       pageBackdropUrl.value = URL.createObjectURL(blob)
-      injectPageBackdrop()
     }
   } catch {
     // No backdrop: the plain HTML text stays visible as a fallback.
@@ -286,22 +291,18 @@ async function loadPageHtml() {
   const requestId = ++pageHtmlRequestId
   const currentBook = book.value
   if (!canRenderPage.value || !currentBook || reflowEnabled.value) {
-    pageHtml.value = ''
-    pageHtmlLoading.value = false
+    rawPageHtml.value = ''
     return
   }
-  pageHtmlLoading.value = true
   error.value = ''
   try {
     const html = await booksApi.fetchPageHtml(currentBook.id, page.value)
-    if (requestId === pageHtmlRequestId) pageHtml.value = html
+    if (requestId === pageHtmlRequestId) rawPageHtml.value = html
   } catch (err) {
     if (requestId === pageHtmlRequestId) {
-      pageHtml.value = ''
+      rawPageHtml.value = ''
       error.value = err instanceof Error ? err.message : '页面加载失败'
     }
-  } finally {
-    if (requestId === pageHtmlRequestId) pageHtmlLoading.value = false
   }
 }
 async function loadPageIllustrations() {
@@ -326,7 +327,16 @@ async function loadPageIllustrations() {
   }
 }
 async function loadPageMedia() {
+  const requestId = ++mediaRequestId
+  pageHtmlLoading.value = true
   await Promise.all([loadPageHtml(), loadPageIllustrations(), loadPageBackdrop()])
+  if (requestId !== mediaRequestId) return
+  // Assign the iframe document only after text layer and backdrop are both
+  // ready, so the page paints fully formed instead of flashing raw text
+  // first and snapping to the PNG-backed view when the image lands.
+  pageHtml.value = reflowEnabled.value ? '' : composePageDocument()
+  pageHtmlLoading.value = false
+  revokeStaleBackdrops()
 }
 const tocItems = computed<TocDisplayItem[]>(() => {
   const result: TocDisplayItem[] = []
