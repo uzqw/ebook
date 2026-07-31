@@ -101,6 +101,8 @@ const saveQueued = ref(false)
 const readerFrame = ref<HTMLIFrameElement | null>(null)
 const pageHtml = ref('')
 const pageHtmlLoading = ref(false)
+const pageBackdropUrl = ref('')
+let backdropRequestId = 0
 const pageIllustrations = ref<PageIllustration[]>([])
 const illustrationsLoading = ref(false)
 const imagePreviewEl = ref<HTMLImageElement | null>(null)
@@ -234,6 +236,47 @@ async function applyCachedFontToFrame() {
   } catch (err) {
     error.value = err instanceof Error ? err.message : '字体加载失败'
   }
+  injectPageBackdrop()
+}
+function clearPageBackdrop() {
+  if (pageBackdropUrl.value) URL.revokeObjectURL(pageBackdropUrl.value)
+  pageBackdropUrl.value = ''
+}
+// PDF.js-style text layer: the rendered page PNG supplies every visual
+// (vector table rules, decorative glyphs, embedded subset fonts that MuPDF
+// HTML cannot express) while the invisible text runs stay selectable.
+function injectPageBackdrop() {
+  const doc = readerFrame.value?.contentDocument
+  const url = pageBackdropUrl.value
+  if (!doc || !url) return
+  doc.getElementById('reader-backdrop-style')?.remove()
+  const style = doc.createElement('style')
+  style.id = 'reader-backdrop-style'
+  style.textContent = `
+div[id^="page"] { background: #fff url("${url}") no-repeat top left / 100% 100%; }
+div[id^="page"] p, div[id^="page"] p * { color: transparent !important; }
+div[id^="page"] img { opacity: 0; z-index: 5; }
+`
+  doc.head.appendChild(style)
+}
+async function loadPageBackdrop() {
+  const requestId = ++backdropRequestId
+  const currentBook = book.value
+  if (!canRenderPage.value || !currentBook || reflowEnabled.value) {
+    clearPageBackdrop()
+    return
+  }
+  try {
+    const blob = await booksApi.fetchPageImage(currentBook.id, page.value)
+    if (requestId === backdropRequestId) {
+      clearPageBackdrop()
+      pageBackdropUrl.value = URL.createObjectURL(blob)
+      injectPageBackdrop()
+    }
+  } catch {
+    // No backdrop: the plain HTML text stays visible as a fallback.
+    if (requestId === backdropRequestId) clearPageBackdrop()
+  }
 }
 async function loadPageHtml() {
   const requestId = ++pageHtmlRequestId
@@ -279,7 +322,7 @@ async function loadPageIllustrations() {
   }
 }
 async function loadPageMedia() {
-  await Promise.all([loadPageHtml(), loadPageIllustrations()])
+  await Promise.all([loadPageHtml(), loadPageIllustrations(), loadPageBackdrop()])
 }
 const tocItems = computed<TocDisplayItem[]>(() => {
   const result: TocDisplayItem[] = []
@@ -595,6 +638,8 @@ onBeforeUnmount(() => {
   }
   narrowViewportQuery.removeEventListener('change', onViewportChange)
   imageViewer?.destroy()
+  backdropRequestId += 1
+  clearPageBackdrop()
   window.removeEventListener('message', handleMessage)
   window.removeEventListener('keydown', onGlobalKeydown)
   window.removeEventListener('mouseleave', onWindowMouseLeave)
