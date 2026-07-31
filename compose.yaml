@@ -14,8 +14,8 @@ services:
       POCKETBASE_DATA_DIR: /app/pb_data
       PUBLIC_DIR: /app/dist
       TMPDIR: /app/pb_data/tmp
-      PB_SUPERUSER_EMAIL: ${PB_SUPERUSER_EMAIL:-admin@reader.local}
-      PB_SUPERUSER_PASSWORD: ${PB_SUPERUSER_PASSWORD:-ebook-reader-admin-123}
+      PB_SUPERUSER_EMAIL: ${PB_SUPERUSER_EMAIL:-admin@e.co}
+      PB_SUPERUSER_PASSWORD: ${PB_SUPERUSER_PASSWORD:-admin123}
       EPUB_RENDER_FONT: /app/fonts/DroidSansFallback.ttf
     healthcheck:
       test: ['CMD-SHELL', 'curl -fsS http://127.0.0.1:18093/api/health >/dev/null']

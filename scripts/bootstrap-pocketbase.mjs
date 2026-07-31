@@ -40,11 +40,11 @@ const config = {
       'ebook-reader',
       'pb_data',
     ),
-  superuserEmail: process.env.PB_SUPERUSER_EMAIL || 'admin@reader.local',
-  superuserPassword: process.env.PB_SUPERUSER_PASSWORD || 'ebook-reader-admin-123',
+  superuserEmail: process.env.PB_SUPERUSER_EMAIL || 'admin@e.co',
+  superuserPassword: process.env.PB_SUPERUSER_PASSWORD || 'admin123',
   appUserName: process.env.APP_USER_NAME || 'Reader Demo User',
-  appUserEmail: process.env.APP_USER_EMAIL || 'demo@reader.local',
-  appUserPassword: process.env.APP_USER_PASSWORD || 'ebook-reader-user-123',
+  appUserEmail: process.env.APP_USER_EMAIL || 'demo@e.co',
+  appUserPassword: process.env.APP_USER_PASSWORD || 'demo1234',
 }
 const pb = new PocketBase(config.url)
 pb.autoCancellation(false)

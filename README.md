@@ -68,9 +68,11 @@ Default local backend address:
 http://127.0.0.1:8090
 ```
 
-### Internal HTTPS certificate
+### Platform-managed HTTPS
 
-The deployed `https://${PLATFORM_HOST}:18094` endpoint uses Caddy's internal CA.
+The Docker image serves HTTP; configure HTTPS in your own Caddy, Nginx, or other
+reverse proxy. The local platform deployment's `https://${PLATFORM_HOST}:18094`
+endpoint uses Caddy's internal CA.
 Every client must trust the gateway's **root CA**; merely bypassing the browser
 warning for one leaf certificate is not sufficient. Caddy rotates its default
 12-hour leaf certificates, and an untrusted replacement makes in-page requests
@@ -140,11 +142,15 @@ task deploy:down # stop deployment without deleting persistent data
 task deploy:logs # show deployment logs
 ```
 
-Demo account:
+Default accounts created by `task bootstrap`:
 
 ```text
-demo@reader.local / ebook-reader-user-123
+User:  demo@e.co  / demo1234
+Admin: admin@e.co / admin123
 ```
+
+Change these credentials before exposing the service publicly. Existing accounts
+and an existing `.env` are not changed automatically.
 
 ## Repository layout
 

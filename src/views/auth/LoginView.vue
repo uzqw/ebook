@@ -8,8 +8,8 @@ import Input from '@/components/ui/Input.vue'
 
 const router = useRouter()
 const route = useRoute()
-const email = ref(import.meta.env.DEV ? 'demo@reader.local' : '')
-const password = ref(import.meta.env.DEV ? 'ebook-reader-user-123' : '')
+const email = ref(import.meta.env.DEV ? 'demo@e.co' : '')
+const password = ref(import.meta.env.DEV ? 'demo1234' : '')
 const showPassword = ref(false)
 const loading = ref(false)
 const error = ref('')
