@@ -17,7 +17,11 @@ docker run -d \
   uzqw/ebook:latest
 ```
 
-Open <http://127.0.0.1:18094>. Upgrade without losing books or reading data:
+Open <http://127.0.0.1:18094>. On first start the container automatically creates
+the PocketBase schema and the default accounts shown below; no separate bootstrap
+command is required.
+
+Upgrade without losing books or reading data:
 
 ```bash
 docker pull uzqw/ebook:latest
@@ -60,7 +64,8 @@ task doctor
 task dev
 ```
 
-Run `task bootstrap` from another terminal after the backend is healthy.
+The backend initializes missing collections and default accounts automatically.
+`task bootstrap` remains available to reconcile schema changes manually.
 
 Default local backend address:
 
@@ -142,7 +147,7 @@ task deploy:down # stop deployment without deleting persistent data
 task deploy:logs # show deployment logs
 ```
 
-Default accounts created by `task bootstrap`:
+Default accounts created on first startup:
 
 ```text
 User:  demo@e.co  / demo1234

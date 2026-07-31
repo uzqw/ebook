@@ -16,6 +16,9 @@ services:
       TMPDIR: /app/pb_data/tmp
       PB_SUPERUSER_EMAIL: ${PB_SUPERUSER_EMAIL:-admin@e.co}
       PB_SUPERUSER_PASSWORD: ${PB_SUPERUSER_PASSWORD:-admin123}
+      APP_USER_NAME: ${APP_USER_NAME:-Reader Demo User}
+      APP_USER_EMAIL: ${APP_USER_EMAIL:-demo@e.co}
+      APP_USER_PASSWORD: ${APP_USER_PASSWORD:-demo1234}
       EPUB_RENDER_FONT: /app/fonts/DroidSansFallback.ttf
     healthcheck:
       test: ['CMD-SHELL', 'curl -fsS http://127.0.0.1:18093/api/health >/dev/null']

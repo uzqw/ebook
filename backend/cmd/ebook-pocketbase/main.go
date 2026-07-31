@@ -1799,6 +1799,13 @@ func registerRoutes(app core.App, svc *pdfService) {
 
 func main() {
 	app := pocketbase.New()
+	app.OnBootstrap().BindFunc(func(e *core.BootstrapEvent) error {
+		if err := e.Next(); err != nil {
+			return err
+		}
+		return ensureSchema(e.App)
+	})
+
 	svc, err := newPDFService()
 	if err != nil {
 		log.Fatal(err)
