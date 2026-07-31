@@ -255,6 +255,10 @@ function injectPageBackdrop() {
   style.textContent = `
 div[id^="page"] { background: #fff url("${url}") no-repeat top left / 100% 100%; }
 div[id^="page"] p, div[id^="page"] p * { color: transparent !important; }
+/* The invisible text runs are laid out with fallback fonts, so their glyphs
+   never align with the rendered page exactly. Show only the highlight band
+   while selecting; showing the glyphs would expose the drift. */
+div[id^="page"] ::selection { color: transparent; background: rgba(50, 100, 220, 0.35); }
 div[id^="page"] img { opacity: 0; z-index: 5; }
 `
   doc.head.appendChild(style)
