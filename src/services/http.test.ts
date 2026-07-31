@@ -78,27 +78,24 @@ describe('installResilientFetch', () => {
     expect(signals[0]).not.toBe(signals[1])
   })
 
-  it('uses the short timeout for reader page HTML', async () => {
+  it('uses the heavy timeout for reader page media', async () => {
     let calls = 0
+    const signals: AbortSignal[] = []
     mockWindow.fetch = vi.fn((_input: RequestInfo | URL, init?: RequestInit): Promise<Response> => {
       calls++
-      if (calls === 1) {
-        return new Promise((_resolve, reject) => {
-          init!.signal!.addEventListener('abort', () => reject(init!.signal!.reason), {
-            once: true,
-          })
-        })
-      }
+      signals.push(init!.signal!)
       return Promise.resolve(new Response('<p>page</p>', { status: 200 }))
     })
 
     installResilientFetch(BASE_URL)
 
-    const promise = mockWindow.fetch(`${BASE_URL}/api/books/book/pages/1/html`)
-    await vi.advanceTimersByTimeAsync(LIGHT_TIMEOUT_MS + 100)
-
-    await expect(promise).resolves.toMatchObject({ ok: true })
+    await mockWindow.fetch(`${BASE_URL}/api/books/book/pages/1/html`)
+    await mockWindow.fetch(`${BASE_URL}/api/books/book/pages/1/image`)
     expect(calls).toBe(2)
+    // A healthy-but-slow transfer (multi-MB page over WireGuard) must not be
+    // cut off by the light 2s timeout.
+    await vi.advanceTimersByTimeAsync(LIGHT_TIMEOUT_MS + 100)
+    expect(signals.every((signal) => !signal.aborted)).toBe(true)
   })
 
   it('inherits a non-idempotent method from a Request object', async () => {

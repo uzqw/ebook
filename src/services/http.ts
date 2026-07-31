@@ -16,10 +16,11 @@ const MAX_RETRIES = 2
 const RETRY_DELAY_MS = 400
 const HEARTBEAT_INTERVAL_MS = 30_000
 
-// Requests that are legitimately slow: font downloads and file uploads. These
-// get a generous timeout. Page HTML stays on the short timeout so a dead path
-// is detected and retried promptly instead of waiting 120 seconds.
-const HEAVY_PATHS = ['/api/fonts/']
+// Requests that are legitimately slow: font downloads, file uploads, and page
+// media. Page HTML embeds cover art as base64 and can reach several MB; over
+// WireGuard the transfer takes far longer than the 2s light timeout even
+// though the connection is healthy, so these must use the heavy timeout too.
+const HEAVY_PATHS = ['/api/fonts/', '/pages/']
 
 // Requests that are safe to re-send without changing server state. PATCH is
 // intentionally excluded because an incremental/append patch is not guaranteed
