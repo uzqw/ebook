@@ -15,6 +15,7 @@ import (
 	"os"
 	"path"
 	"path/filepath"
+	"regexp"
 	"strconv"
 	"strings"
 	"sync"
@@ -990,7 +991,19 @@ func renderFitzPageHTML(bookBytes []byte, pageNumber int, ext string) (string, e
 	return doc.HTML(pageNumber-1, true)
 }
 
+var embeddedImageSrc = regexp.MustCompile(`(?i)\ssrc="data:image/[^"]*"`)
+
+// stripEmbeddedImageData drops MuPDF base64 image payloads from page HTML.
+// They make every page several MB (covers especially) while the reader already
+// paints a page PNG backdrop for visuals; keeping the src attribute empty would
+// make browsers resolve it against the document URL, so remove it entirely.
+func stripEmbeddedImageData(html string) string {
+	return embeddedImageSrc.ReplaceAllString(html, "")
+}
+
 func decorateReaderPageHTML(htmlStr string) string {
+	htmlStr = stripEmbeddedImageData(htmlStr)
+
 	// MuPDF/fitz HTML places each line in absolutely-positioned <p> boxes. Native
 	// browser selection maps empty gutters/margins to the wrong earlier text run.
 	// We (1) make only line boxes selectable, (2) expand line hit targets to fill
@@ -1493,8 +1506,9 @@ func renderPagePNG(app core.App, svc *pdfService, book *core.Record, pageNumber 
 
 type pageIllustration struct {
 	Top    float64 `json:"top"`
-	Width  int     `json:"width"`
-	Height int     `json:"height"`
+	Left   float64 `json:"left"`
+	Width  float64 `json:"width"`
+	Height float64 `json:"height"`
 	Src    string  `json:"src"`
 }
 
@@ -1609,11 +1623,15 @@ func extractPageIllustrations(svc *pdfService, pdfBytes []byte, pageNumber int) 
 			if width < 32 || height < 32 {
 				continue
 			}
-			top := float64(pageSize.Height-float64(bounds.Top)) / pageSize.Height
+			top := (pageSize.Height - float64(bounds.Top)) / pageSize.Height
+			left := float64(bounds.Left) / pageSize.Width
+			boxWidth := (float64(bounds.Right) - float64(bounds.Left)) / pageSize.Width
+			boxHeight := (float64(bounds.Top) - float64(bounds.Bottom)) / pageSize.Height
 			illustrations = append(illustrations, pageIllustration{
 				Top:    max(0, min(1, top)),
-				Width:  width,
-				Height: height,
+				Left:   max(0, min(1, left)),
+				Width:  max(0, min(1, boxWidth)),
+				Height: max(0, min(1, boxHeight)),
 				Src:    "data:" + mimeType + ";base64," + base64.StdEncoding.EncodeToString(imageBytes),
 			})
 		}

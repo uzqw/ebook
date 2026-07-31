@@ -225,14 +225,6 @@ async function applyCachedFontToFrame() {
   if (!frame || !doc) return
   doc.addEventListener('mousemove', onFrameMousemove)
   doc.addEventListener('keydown', onGlobalKeydown)
-  // Illustrations inside the page open in the preview viewer on click.
-  doc.addEventListener('click', (event) => {
-    const img = (event.target as HTMLElement | null)?.closest?.('img')
-    if (!img) return
-    event.preventDefault()
-    event.stopPropagation()
-    openExpandedImage((img as HTMLImageElement).currentSrc || (img as HTMLImageElement).src)
-  })
   try {
     await installCachedCjkFont(doc, true)
     window.setTimeout(() => frame.contentWindow?.dispatchEvent(new Event('resize')), 0)
@@ -308,7 +300,7 @@ async function loadPageHtml() {
 async function loadPageIllustrations() {
   const requestId = ++illustrationsRequestId
   const currentBook = book.value
-  if (!canRenderPage.value || !currentBook || !reflowEnabled.value) {
+  if (!canRenderPage.value || !currentBook) {
     pageIllustrations.value = []
     illustrationsLoading.value = false
     return
@@ -901,6 +893,21 @@ onBeforeUnmount(() => {
             :style="{ height: iframeHeight + 'px' }"
             @load="applyCachedFontToFrame"
           ></iframe>
+          <button
+            v-for="(illustration, index) in pageIllustrations"
+            v-show="pageHtml"
+            :key="index"
+            type="button"
+            class="reader-illustration-hotspot"
+            :style="{
+              left: `${illustration.left * 100}%`,
+              top: `${illustration.top * 100}%`,
+              width: `${illustration.width * 100}%`,
+              height: `${illustration.height * 100}%`,
+            }"
+            aria-label="放大查看书中插图"
+            @click.stop="openExpandedImage(illustration.src)"
+          />
           <div
             v-if="pageHtmlLoading"
             class="absolute inset-0 z-10 flex min-h-72 items-center justify-center gap-2 bg-white/75 text-sm font-semibold text-[#384c3d]"

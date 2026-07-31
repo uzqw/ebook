@@ -9,6 +9,7 @@ import type {
 
 export interface PageIllustration {
   top: number
+  left: number
   width: number
   height: number
   src: string

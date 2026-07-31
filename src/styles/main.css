@@ -393,8 +393,24 @@ select {
 }
 
 .reader-image-frame {
+  position: relative;
   overflow: hidden;
   background: var(--reader-page, #e5e7eb);
+}
+
+.reader-illustration-hotspot {
+  position: absolute;
+  z-index: 6;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  cursor: zoom-in;
+}
+
+.reader-illustration-hotspot:hover,
+.reader-illustration-hotspot:focus-visible {
+  outline: 2px solid rgba(21, 128, 61, 0.65);
+  background: rgba(21, 128, 61, 0.1);
 }
 
 .reader-surface[data-reader-theme]:not([data-reader-theme='paper']) .reader-image-frame img {
