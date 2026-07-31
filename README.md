@@ -4,12 +4,41 @@
 
 ## Deployment
 
-Recommended flow:
+### Docker Hub image
+
+The published image currently supports `linux/amd64`:
 
 ```bash
-cp .env.example .env
-task deploy
+docker run -d \
+  --name ebook-reader \
+  --restart unless-stopped \
+  -p 18094:18093 \
+  -v ebook-reader-data:/app/pb_data \
+  uzqw/ebook:latest
 ```
+
+Open <http://127.0.0.1:18094>. Upgrade without losing books or reading data:
+
+```bash
+docker pull uzqw/ebook:latest
+docker rm -f ebook-reader
+docker run -d --name ebook-reader --restart unless-stopped \
+  -p 18094:18093 -v ebook-reader-data:/app/pb_data uzqw/ebook:latest
+```
+
+### Build from source
+
+A Linux host only needs Docker with Compose v2 and `make`:
+
+```bash
+git clone https://github.com/uzqw/ebook.git
+cd ebook
+make deploy
+```
+
+The command creates `.env` when missing, builds the image, and starts the app at
+<http://127.0.0.1:18094>. Review the generated `.env` credentials before exposing
+that port publicly. Set `DOCKER_HOST_PORT` to use another host port.
 
 Deployment stores PocketBase data under
 `${APP_DATA_ROOT}/ebook-reader/pb_data`. Set `APP_DATA_ROOT` to an absolute

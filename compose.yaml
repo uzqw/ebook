@@ -2,8 +2,8 @@ services:
   ebook-reader-uzqw:
     image: ${DOCKER_IMAGE:-ebook-reader-uzqw:local}
     user: '${APP_UID:-${HOST_UID:-1000}}:${APP_GID:-${HOST_GID:-1000}}'
-    # ports:
-    #   - "${DOCKER_HOST_PORT:-18094}:18093"
+    ports:
+      - "${DOCKER_HOST_PORT:-18094}:18093"
     volumes:
       - ${DOCKER_PB_DATA_PATH:-${XDG_DATA_HOME:-${HOME}/.local/share}/uzqw/apps/ebook-reader/pb_data}:/app/pb_data
       - ${DOCKER_BUILDER_CACHE_PATH:-${XDG_DATA_HOME:-${HOME}/.local/share}/uzqw/apps/ebook-reader/docker-build-cache}:/pi-build-cache
