@@ -21,6 +21,9 @@ import {
 } from '@lucide/vue'
 import { bookmarksApi, booksApi, notesApi, pagesApi, readingApi } from '@/services/api'
 import type { PageIllustration } from '@/services/api'
+import { installCachedCjkFont } from '@/services/font-cache'
+import Viewer from 'viewerjs'
+import 'viewerjs/dist/viewer.css'
 import { parseLayoutPreference, reflowText, resolveLayoutMode } from '@/lib/reflow'
 import type { LayoutPreference } from '@/lib/reflow'
 import type {
@@ -95,16 +98,15 @@ const parsePollTimer = ref<number | null>(null)
 const canAutoSave = ref(false)
 const saveTimer = ref<number | null>(null)
 const saveQueued = ref(false)
-const pageImageUrl = ref('')
-const pageImageLoading = ref(false)
+const readerFrame = ref<HTMLIFrameElement | null>(null)
+const pageHtml = ref('')
+const pageHtmlLoading = ref(false)
 const pageIllustrations = ref<PageIllustration[]>([])
 const illustrationsLoading = ref(false)
+const imagePreviewEl = ref<HTMLImageElement | null>(null)
 const expandedImage = ref('')
-const expandedImageScale = ref(1)
-const expandedImageWidth = ref(0)
-let pinchStartDistance = 0
-let pinchStartScale = 1
-let pageImageRequestId = 0
+let imageViewer: Viewer | null = null
+let pageHtmlRequestId = 0
 let illustrationsRequestId = 0
 
 const chromeVisible = ref(true)
@@ -122,40 +124,27 @@ function toggleChrome() {
 }
 
 function openExpandedImage(src: string) {
+  const el = imagePreviewEl.value
+  if (!el) return
+  imageViewer?.destroy()
   expandedImage.value = src
-  expandedImageScale.value = 1
-  expandedImageWidth.value = Math.min(1100, window.innerWidth - 32)
+  el.src = src
+  imageViewer = new Viewer(el, {
+    toolbar: false,
+    navbar: false,
+    title: false,
+    transition: false,
+    rotatable: false,
+    scalable: false,
+    keyboard: false,
+  })
+  el.addEventListener('hidden', () => (expandedImage.value = ''), { once: true })
+  imageViewer.show()
 }
 
 function closeExpandedImage() {
+  imageViewer?.hide()
   expandedImage.value = ''
-  pinchStartDistance = 0
-}
-
-function touchDistance(touches: TouchList) {
-  const x = touches[0].clientX - touches[1].clientX
-  const y = touches[0].clientY - touches[1].clientY
-  return Math.hypot(x, y)
-}
-
-function onImageTouchStart(event: TouchEvent) {
-  if (event.touches.length !== 2) return
-  event.preventDefault()
-  pinchStartDistance = touchDistance(event.touches)
-  pinchStartScale = expandedImageScale.value
-}
-
-function onImageTouchMove(event: TouchEvent) {
-  if (event.touches.length !== 2 || !pinchStartDistance) return
-  event.preventDefault()
-  expandedImageScale.value = Math.min(
-    5,
-    Math.max(1, pinchStartScale * (touchDistance(event.touches) / pinchStartDistance)),
-  )
-}
-
-function onImageTouchEnd(event: TouchEvent) {
-  if (event.touches.length < 2) pinchStartDistance = 0
 }
 
 function handlePageTap(event: MouseEvent) {
@@ -219,34 +208,53 @@ const reflowItems = computed(() => {
 })
 const pageCount = computed(() => book.value?.page_count || pages.value.length || 1)
 const canRenderPage = computed(() => book.value?.parse_status === 'completed')
-const pageImageHeight = ref(800)
-function clearPageImage() {
-  if (pageImageUrl.value) URL.revokeObjectURL(pageImageUrl.value)
-  pageImageUrl.value = ''
+const iframeHeight = ref(800)
+function handleMessage(event: MessageEvent) {
+  if (event.data && event.data.type === 'ebook-reader-page-height') {
+    iframeHeight.value = event.data.height
+  }
 }
-async function loadPageImage() {
-  const requestId = ++pageImageRequestId
+async function applyCachedFontToFrame() {
+  const frame = readerFrame.value
+  const doc = frame?.contentDocument
+  if (!frame || !doc) return
+  doc.addEventListener('mousemove', onFrameMousemove)
+  doc.addEventListener('keydown', onGlobalKeydown)
+  // Illustrations inside the page open in the preview viewer on click.
+  doc.addEventListener('click', (event) => {
+    const img = (event.target as HTMLElement | null)?.closest?.('img')
+    if (!img) return
+    event.preventDefault()
+    event.stopPropagation()
+    openExpandedImage((img as HTMLImageElement).currentSrc || (img as HTMLImageElement).src)
+  })
+  try {
+    await installCachedCjkFont(doc, true)
+    window.setTimeout(() => frame.contentWindow?.dispatchEvent(new Event('resize')), 0)
+  } catch (err) {
+    error.value = err instanceof Error ? err.message : '字体加载失败'
+  }
+}
+async function loadPageHtml() {
+  const requestId = ++pageHtmlRequestId
   const currentBook = book.value
   if (!canRenderPage.value || !currentBook || reflowEnabled.value) {
-    clearPageImage()
-    pageImageLoading.value = false
+    pageHtml.value = ''
+    pageHtmlLoading.value = false
     return
   }
-  pageImageLoading.value = true
+  pageHtmlLoading.value = true
   error.value = ''
   try {
-    const blob = await booksApi.fetchPageImage(currentBook.id, page.value)
-    if (requestId === pageImageRequestId) {
-      clearPageImage()
-      pageImageUrl.value = URL.createObjectURL(blob)
-    }
+    const html = await booksApi.fetchPageHtml(currentBook.id, page.value)
+    if (requestId === pageHtmlRequestId) pageHtml.value = html
   } catch (err) {
-    if (requestId === pageImageRequestId) {
-      clearPageImage()
+    if (requestId === pageHtmlRequestId) {
+      pageHtml.value = ''
       error.value = err instanceof Error ? err.message : '页面加载失败'
     }
   } finally {
-    if (requestId === pageImageRequestId) pageImageLoading.value = false
+    if (requestId === pageHtmlRequestId) pageHtmlLoading.value = false
   }
 }
 async function loadPageIllustrations() {
@@ -271,10 +279,7 @@ async function loadPageIllustrations() {
   }
 }
 async function loadPageMedia() {
-  await Promise.all([loadPageImage(), loadPageIllustrations()])
-}
-function onPageImageLoad(event: Event) {
-  pageImageHeight.value = (event.currentTarget as HTMLImageElement).clientHeight
+  await Promise.all([loadPageHtml(), loadPageIllustrations()])
 }
 const tocItems = computed<TocDisplayItem[]>(() => {
   const result: TocDisplayItem[] = []
@@ -340,6 +345,11 @@ function updateChromeVisibility(clientY: number) {
 function onSectionMousemove(event: MouseEvent) {
   if (narrowViewport.value) return
   updateChromeVisibility(event.clientY)
+}
+function onFrameMousemove(event: MouseEvent) {
+  const rect = readerFrame.value?.getBoundingClientRect()
+  if (!rect) return
+  updateChromeVisibility(rect.top + event.clientY)
 }
 function onWindowMouseLeave() {
   if (narrowViewport.value || activeSidePanel.value) return
@@ -426,6 +436,7 @@ function onGlobalKeydown(event: KeyboardEvent) {
     activeSidePanel.value = null
     return
   }
+  if (expandedImage.value) return
   if (isEditableTarget(event.target)) return
   if (event.key === 'ArrowLeft' || event.key === 'PageUp') {
     event.preventDefault()
@@ -568,11 +579,12 @@ function onViewportChange(event: MediaQueryListEvent) {
 onMounted(() => {
   void load()
   narrowViewportQuery.addEventListener('change', onViewportChange)
+  window.addEventListener('message', handleMessage)
   window.addEventListener('keydown', onGlobalKeydown)
   window.addEventListener('mouseleave', onWindowMouseLeave)
 })
 onBeforeUnmount(() => {
-  pageImageRequestId += 1
+  pageHtmlRequestId += 1
   illustrationsRequestId += 1
   if (parsePollTimer.value !== null) window.clearInterval(parsePollTimer.value)
   if (saveTimer.value !== null) window.clearTimeout(saveTimer.value)
@@ -582,7 +594,8 @@ onBeforeUnmount(() => {
     })
   }
   narrowViewportQuery.removeEventListener('change', onViewportChange)
-  clearPageImage()
+  imageViewer?.destroy()
+  window.removeEventListener('message', handleMessage)
   window.removeEventListener('keydown', onGlobalKeydown)
   window.removeEventListener('mouseleave', onWindowMouseLeave)
 })
@@ -814,23 +827,23 @@ onBeforeUnmount(() => {
       <div
         v-else-if="canRenderPage"
         class="reader-zoom-stage"
-        :style="{ height: `${pageImageHeight * zoom}px` }"
+        :style="{ height: `${iframeHeight * zoom}px` }"
       >
         <div
           class="reader-page reader-image-frame"
           :style="{ transform: `scale(${zoom})`, transformOrigin: 'top center' }"
         >
-          <button
-            v-if="pageImageUrl"
-            type="button"
-            class="block w-full"
-            aria-label="放大查看原页图片"
-            @click.stop="openExpandedImage(pageImageUrl)"
-          >
-            <img :src="pageImageUrl" alt="原页图片" @load="onPageImageLoad" />
-          </button>
+          <iframe
+            ref="readerFrame"
+            :srcdoc="pageHtml"
+            title="书页内容"
+            sandbox="allow-scripts allow-same-origin"
+            class="w-full border-0 bg-white"
+            :style="{ height: iframeHeight + 'px' }"
+            @load="applyCachedFontToFrame"
+          ></iframe>
           <div
-            v-if="pageImageLoading"
+            v-if="pageHtmlLoading"
             class="absolute inset-0 z-10 flex min-h-72 items-center justify-center gap-2 bg-white/75 text-sm font-semibold text-[#384c3d]"
           >
             <Loader2 class="size-4 animate-spin" />正在加载页面...
@@ -840,36 +853,12 @@ onBeforeUnmount(() => {
       <div v-else class="panel text-sm text-[#384c3d]">解析完成后将显示书页，请稍后刷新。</div>
     </main>
 
-    <Transition name="reader-scrim">
-      <div
-        v-if="expandedImage"
-        class="reader-image-lightbox fixed inset-0 z-[60] overflow-auto bg-black/90 p-4"
-        role="dialog"
-        aria-modal="true"
-        aria-label="图片预览"
-        @click="closeExpandedImage"
-      >
-        <button
-          type="button"
-          class="fixed right-4 top-4 z-10 rounded-full bg-black/70 p-3 text-white"
-          aria-label="关闭图片预览"
-          @click="closeExpandedImage"
-        >
-          <X class="size-6" />
-        </button>
-        <img
-          :src="expandedImage"
-          alt="放大的书中图片"
-          class="mx-auto max-w-none rounded-lg"
-          :style="{ width: `${expandedImageWidth * expandedImageScale}px` }"
-          @click.stop
-          @touchstart.stop="onImageTouchStart"
-          @touchmove.stop="onImageTouchMove"
-          @touchend.stop="onImageTouchEnd"
-          @touchcancel.stop="onImageTouchEnd"
-        />
-      </div>
-    </Transition>
+    <img
+      ref="imagePreviewEl"
+      alt="放大的书中图片"
+      class="reader-viewer-source"
+      :src="expandedImage"
+    />
 
     <Transition name="reader-chrome">
       <div

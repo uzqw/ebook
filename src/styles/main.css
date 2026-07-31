@@ -489,14 +489,8 @@ select {
   box-shadow: 0 8px 24px rgba(0, 0, 0, 0.16);
 }
 
-.reader-image-lightbox {
-  overscroll-behavior: contain;
-  -webkit-overflow-scrolling: touch;
-}
-
-.reader-image-lightbox img {
-  height: auto;
-  transform-origin: top center;
+.reader-viewer-source {
+  display: none;
 }
 
 .reader-zoom-stage {
