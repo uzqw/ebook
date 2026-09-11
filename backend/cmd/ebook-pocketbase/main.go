@@ -1660,6 +1660,32 @@ func authTokenFromRequest(re *core.RequestEvent) string {
 	return authTokenFromHTTPRequest(re.Request)
 }
 
+// authorizedBookPage resolves the shared page-route gate: auth token → book
+// lookup → ownership → page number. The error returns preserve each route's
+// historical response semantics.
+func authorizedBookPage(app core.App, re *core.RequestEvent) (*core.Record, int, error) {
+	token := authTokenFromRequest(re)
+	if token == "" {
+		return nil, 0, re.UnauthorizedError("missing auth token", nil)
+	}
+	auth, err := app.FindAuthRecordByToken(token, core.TokenTypeAuth)
+	if err != nil {
+		return nil, 0, re.UnauthorizedError("invalid auth token", nil)
+	}
+	book, err := app.FindRecordById("books", re.Request.PathValue("id"))
+	if err != nil {
+		return nil, 0, re.NotFoundError("book not found", nil)
+	}
+	if book.GetString("user") != auth.Id {
+		return nil, 0, re.ForbiddenError("not your book", nil)
+	}
+	pageNumber, err := strconv.Atoi(re.Request.PathValue("page"))
+	if err != nil {
+		return nil, 0, re.BadRequestError("invalid page", nil)
+	}
+	return book, pageNumber, nil
+}
+
 func registerRoutes(app core.App, svc *pdfService) {
 	app.OnServe().BindFunc(func(e *core.ServeEvent) error {
 		// Note: /api/health is provided by PocketBase's built-in health API
@@ -1680,25 +1706,9 @@ func registerRoutes(app core.App, svc *pdfService) {
 		})
 
 		e.Router.GET("/api/books/{id}/pages/{page}/image", func(re *core.RequestEvent) error {
-			token := authTokenFromRequest(re)
-			if token == "" {
-				return re.UnauthorizedError("missing auth token", nil)
-			}
-			auth, err := app.FindAuthRecordByToken(token, core.TokenTypeAuth)
+			book, pageNumber, err := authorizedBookPage(app, re)
 			if err != nil {
-				return re.UnauthorizedError("invalid auth token", nil)
-			}
-			bookID := re.Request.PathValue("id")
-			book, err := app.FindRecordById("books", bookID)
-			if err != nil {
-				return re.NotFoundError("book not found", nil)
-			}
-			if book.GetString("user") != auth.Id {
-				return re.ForbiddenError("not your book", nil)
-			}
-			pageNumber, err := strconv.Atoi(re.Request.PathValue("page"))
-			if err != nil {
-				return re.BadRequestError("invalid page", nil)
+				return err
 			}
 			if book.GetString("parse_status") != "completed" {
 				return re.BadRequestError("book parsing is not completed", nil)
@@ -1726,24 +1736,9 @@ func registerRoutes(app core.App, svc *pdfService) {
 		})
 
 		e.Router.GET("/api/books/{id}/pages/{page}/illustrations", func(re *core.RequestEvent) error {
-			token := authTokenFromRequest(re)
-			if token == "" {
-				return re.UnauthorizedError("missing auth token", nil)
-			}
-			auth, err := app.FindAuthRecordByToken(token, core.TokenTypeAuth)
+			book, pageNumber, err := authorizedBookPage(app, re)
 			if err != nil {
-				return re.UnauthorizedError("invalid auth token", nil)
-			}
-			book, err := app.FindRecordById("books", re.Request.PathValue("id"))
-			if err != nil {
-				return re.NotFoundError("book not found", nil)
-			}
-			if book.GetString("user") != auth.Id {
-				return re.ForbiddenError("not your book", nil)
-			}
-			pageNumber, err := strconv.Atoi(re.Request.PathValue("page"))
-			if err != nil {
-				return re.BadRequestError("invalid page", nil)
+				return err
 			}
 			if strings.ToLower(filepath.Ext(book.GetString("file"))) != ".pdf" {
 				return re.JSON(http.StatusOK, []pageIllustration{})
@@ -1756,25 +1751,9 @@ func registerRoutes(app core.App, svc *pdfService) {
 		})
 
 		e.Router.GET("/api/books/{id}/pages/{page}/html", func(re *core.RequestEvent) error {
-			token := authTokenFromRequest(re)
-			if token == "" {
-				return re.UnauthorizedError("missing auth token", nil)
-			}
-			auth, err := app.FindAuthRecordByToken(token, core.TokenTypeAuth)
+			book, pageNumber, err := authorizedBookPage(app, re)
 			if err != nil {
-				return re.UnauthorizedError("invalid auth token", nil)
-			}
-			bookID := re.Request.PathValue("id")
-			book, err := app.FindRecordById("books", bookID)
-			if err != nil {
-				return re.NotFoundError("book not found", nil)
-			}
-			if book.GetString("user") != auth.Id {
-				return re.ForbiddenError("not your book", nil)
-			}
-			pageNumber, err := strconv.Atoi(re.Request.PathValue("page"))
-			if err != nil {
-				return re.BadRequestError("invalid page", nil)
+				return err
 			}
 			if book.GetString("parse_status") != "completed" {
 				return re.BadRequestError("book parsing is not completed", nil)
