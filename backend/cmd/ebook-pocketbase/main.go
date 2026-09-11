@@ -1662,6 +1662,10 @@ func authTokenFromRequest(re *core.RequestEvent) string {
 
 func registerRoutes(app core.App, svc *pdfService) {
 	app.OnServe().BindFunc(func(e *core.ServeEvent) error {
+		// Note: /api/health is provided by PocketBase's built-in health API
+		// (apis.bindHealthApi) — it returns 200 for the frontend heartbeat probe
+		// (src/services/http.ts) and `task status`. No custom route needed.
+
 		e.Router.GET("/metrics", func(re *core.RequestEvent) error {
 			re.Response.Header().Set("Content-Type", "text/plain; version=0.0.4")
 			return re.String(http.StatusOK, fmt.Sprintf(
@@ -1815,6 +1819,28 @@ func registerRoutes(app core.App, svc *pdfService) {
 	})
 }
 
+// registerHooks binds the books collection lifecycle hooks. It lives outside
+// main() so tests can exercise the same bindings.
+func registerHooks(app core.App, svc *pdfService) {
+	app.OnRecordAfterCreateSuccess("books").BindFunc(func(e *core.RecordEvent) error {
+		if err := e.Next(); err != nil {
+			return err
+		}
+		go parseBook(app, svc, e.Record.Id)
+		return nil
+	})
+
+	// Single registration: the request hook wraps the whole API delete (children
+	// cleanup + book row) in one transaction, and blocks the delete on failure.
+	// A second OnRecordDelete handler would re-run cleanup per child delete.
+	app.OnRecordDeleteRequest("books").BindFunc(func(e *core.RecordRequestEvent) error {
+		if err := deleteBookChildren(app, e.Record.Id); err != nil {
+			return err
+		}
+		return e.Next()
+	})
+}
+
 func main() {
 	app := pocketbase.New()
 	app.OnBootstrap().BindFunc(func(e *core.BootstrapEvent) error {
@@ -1830,27 +1856,7 @@ func main() {
 	}
 	defer svc.close()
 
-	app.OnRecordAfterCreateSuccess("books").BindFunc(func(e *core.RecordEvent) error {
-		if err := e.Next(); err != nil {
-			return err
-		}
-		go parseBook(app, svc, e.Record.Id)
-		return nil
-	})
-
-	app.OnRecordDeleteRequest("books").BindFunc(func(e *core.RecordRequestEvent) error {
-		if err := deleteBookChildren(app, e.Record.Id); err != nil {
-			return err
-		}
-		return e.Next()
-	})
-
-	app.OnRecordDelete("books").BindFunc(func(e *core.RecordEvent) error {
-		if err := deleteBookChildren(app, e.Record.Id); err != nil {
-			return err
-		}
-		return e.Next()
-	})
+	registerHooks(app, svc)
 	registerRoutes(app, svc)
 
 	if err := app.Start(); err != nil {
