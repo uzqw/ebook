@@ -133,6 +133,92 @@ func recordPDFBytes(app core.App, record *core.Record) ([]byte, error) {
 	return io.ReadAll(reader)
 }
 
+// fitzBookCache caches render-ready book bytes (CJK font already injected for
+// EPUBs) so sequential page turns skip the read + re-zip + re-open pipeline.
+// Keyed by record ID and invalidated by file size+mtime, so a replaced book
+// file never yields stale renders.
+// ponytail: fixed 4-entry LRU — page turns are sequential per book; bump
+// fitzBookCacheSize if multi-book interleaving ever matters.
+const fitzBookCacheSize = 4
+
+type fitzBookCacheEntry struct {
+	key     string
+	size    int64
+	modTime time.Time
+	data    []byte
+}
+
+var fitzBookCache struct {
+	sync.Mutex
+	entries []fitzBookCacheEntry // most-recent first
+}
+
+func fitzBookCacheLookup(key string, size int64, modTime time.Time) []byte {
+	fitzBookCache.Lock()
+	defer fitzBookCache.Unlock()
+	for i, e := range fitzBookCache.entries {
+		if e.key == key && e.size == size && e.modTime.Equal(modTime) {
+			fitzBookCache.entries = append([]fitzBookCacheEntry{e}, append(fitzBookCache.entries[:i:i], fitzBookCache.entries[i+1:]...)...)
+			return e.data
+		}
+	}
+	return nil
+}
+
+func fitzBookCacheStore(key string, size int64, modTime time.Time, data []byte) {
+	fitzBookCache.Lock()
+	defer fitzBookCache.Unlock()
+	entries := make([]fitzBookCacheEntry, 0, fitzBookCacheSize)
+	entries = append(entries, fitzBookCacheEntry{key: key, size: size, modTime: modTime, data: data})
+	for _, e := range fitzBookCache.entries {
+		if e.key != key && len(entries) < fitzBookCacheSize {
+			entries = append(entries, e)
+		}
+	}
+	fitzBookCache.entries = entries
+}
+
+// preparedFitzBookBytes returns the render-ready bytes for an EPUB/MOBI book:
+// raw file bytes for MOBI, font-injected bytes for EPUB. Results are cached
+// per record and invalidated when the underlying file's size or mtime changes.
+func preparedFitzBookBytes(app core.App, record *core.Record, ext string) ([]byte, error) {
+	filename := record.GetString("file")
+	if filename == "" {
+		return nil, fmt.Errorf("missing book file")
+	}
+	filePath := path.Join(record.BaseFilesPath(), filename)
+
+	fsys, err := app.NewFilesystem()
+	if err != nil {
+		return nil, err
+	}
+	defer fsys.Close()
+
+	attrs, err := fsys.Attributes(filePath)
+	if err != nil {
+		return nil, err
+	}
+	key := record.Id + ":" + filename
+	if data := fitzBookCacheLookup(key, attrs.Size, attrs.ModTime); data != nil {
+		return data, nil
+	}
+
+	reader, err := fsys.GetReader(filePath)
+	if err != nil {
+		return nil, err
+	}
+	defer reader.Close()
+	data, err := io.ReadAll(reader)
+	if err != nil {
+		return nil, err
+	}
+	if ext == ".epub" {
+		data = injectEPUBRenderFont(data)
+	}
+	fitzBookCacheStore(key, attrs.Size, attrs.ModTime, data)
+	return data, nil
+}
+
 func zipFileBytes(reader *zip.Reader, name string) ([]byte, bool) {
 	name = path.Clean(strings.TrimPrefix(name, "/"))
 	for _, file := range reader.File {
@@ -920,29 +1006,13 @@ func injectEPUBRenderFont(bookBytes []byte) []byte {
 	return buffer.Bytes()
 }
 
-func renderFitzPagePNG(bookBytes []byte, pageNumber int, ext string) ([]byte, error) {
-	if ext == ".epub" {
-		bookBytes = injectEPUBRenderFont(bookBytes)
-	}
-
+// renderFitzPagePNG renders one page of a prepared (font-injected) EPUB/MOBI
+// book to PNG. bookBytes must come from preparedFitzBookBytes.
+func renderFitzPagePNG(bookBytes []byte, pageNumber int) ([]byte, error) {
 	fitzMu.Lock()
 	defer fitzMu.Unlock()
 
-	tmpFile, err := os.CreateTemp("", "fitz-render-*"+ext)
-	if err != nil {
-		return nil, err
-	}
-	defer os.Remove(tmpFile.Name())
-
-	if _, err := tmpFile.Write(bookBytes); err != nil {
-		tmpFile.Close()
-		return nil, err
-	}
-	if err := tmpFile.Close(); err != nil {
-		return nil, err
-	}
-
-	doc, err := fitz.New(tmpFile.Name())
+	doc, err := fitz.NewFromMemory(bookBytes)
 	if err != nil {
 		return nil, err
 	}
@@ -956,29 +1026,13 @@ func renderFitzPagePNG(bookBytes []byte, pageNumber int, ext string) ([]byte, er
 	return doc.ImagePNG(pageNumber-1, dpi)
 }
 
-func renderFitzPageHTML(bookBytes []byte, pageNumber int, ext string) (string, error) {
-	if ext == ".epub" {
-		bookBytes = injectEPUBRenderFont(bookBytes)
-	}
-
+// renderFitzPageHTML renders one page of a prepared (font-injected) EPUB/MOBI
+// book to HTML. bookBytes must come from preparedFitzBookBytes.
+func renderFitzPageHTML(bookBytes []byte, pageNumber int) (string, error) {
 	fitzMu.Lock()
 	defer fitzMu.Unlock()
 
-	tmpFile, err := os.CreateTemp("", "fitz-html-*"+ext)
-	if err != nil {
-		return "", err
-	}
-	defer os.Remove(tmpFile.Name())
-
-	if _, err := tmpFile.Write(bookBytes); err != nil {
-		tmpFile.Close()
-		return "", err
-	}
-	if err := tmpFile.Close(); err != nil {
-		return "", err
-	}
-
-	doc, err := fitz.New(tmpFile.Name())
+	doc, err := fitz.NewFromMemory(bookBytes)
 	if err != nil {
 		return "", err
 	}
@@ -1718,11 +1772,11 @@ func registerRoutes(app core.App, svc *pdfService) {
 			ext := strings.ToLower(filepath.Ext(filename))
 			var pngBytes []byte
 			if ext == ".epub" || ext == ".mobi" {
-				bookBytes, err := recordPDFBytes(app, book)
+				bookBytes, err := preparedFitzBookBytes(app, book, ext)
 				if err != nil {
 					return re.InternalServerError(err.Error(), nil)
 				}
-				pngBytes, err = renderFitzPagePNG(bookBytes, pageNumber, ext)
+				pngBytes, err = renderFitzPagePNG(bookBytes, pageNumber)
 				if err != nil {
 					return re.InternalServerError(err.Error(), nil)
 				}
@@ -1760,12 +1814,12 @@ func registerRoutes(app core.App, svc *pdfService) {
 			}
 			filename := book.GetString("file")
 			ext := strings.ToLower(filepath.Ext(filename))
-			bookBytes, err := recordPDFBytes(app, book)
+			bookBytes, err := preparedFitzBookBytes(app, book, ext)
 			if err != nil {
 				return re.InternalServerError(err.Error(), nil)
 			}
 
-			htmlStr, err := renderFitzPageHTML(bookBytes, pageNumber, ext)
+			htmlStr, err := renderFitzPageHTML(bookBytes, pageNumber)
 			if err != nil {
 				return re.InternalServerError(err.Error(), nil)
 			}
