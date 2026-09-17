@@ -129,21 +129,36 @@ server at `<base-url>/mcp` (streamable HTTP, same PocketBase process, no second
 service). Any MCP client can list the library, walk a book's table of contents, and
 read chapters or page ranges.
 
-Use the URL you already reach the app on. With the defaults from `.env.example`
-(`POCKETBASE_HOST=127.0.0.1`, `POCKETBASE_PORT=8090`) that is
-`http://127.0.0.1:8090/mcp`; the published image example above publishes the
-container port as `18094`, so there it is `http://127.0.0.1:18094/mcp`.
+Use the URL you already reach the app on:
+
+- `task dev` serves the backend directly, so it is the default local address
+  `http://127.0.0.1:8090/mcp`.
+- A deployed stack is reached through its reverse proxy — on the local platform
+  deployment, `https://${PLATFORM_HOST}:18094/mcp`. The compose stack publishes no
+  host port, so there is no `127.0.0.1:<port>` shortcut to the running container.
 
 Authentication reuses PocketBase user tokens: send `Authorization: Bearer <token>`.
 Every tool is scoped to the token's user, so one account cannot read another
-account's books. The default demo account from `.env.example` works out of the box:
+account's books; mint the token from the account that owns the books. Credentials
+live in `.env` as `APP_USER_EMAIL` / `APP_USER_PASSWORD`:
 
 ```bash
-TOKEN=$(curl -s -X POST http://127.0.0.1:8090/api/collections/users/auth-with-password \
+set -a; . ./.env; set +a
+TOKEN=$(curl -s -X POST "${EBOOK_BASE_URL:-https://${PLATFORM_HOST}:18094}"\
+  /api/collections/users/auth-with-password \
   -H 'Content-Type: application/json' \
-  -d '{"identity":"demo@e.co","password":"demo1234"}' | jq -r .token)
+  --data "$(jq -nc --arg i "$APP_USER_EMAIL" --arg p "$APP_USER_PASSWORD" \
+    '{identity:$i,password:$p}')" | jq -r .token)
 export EBOOK_PB_TOKEN="$TOKEN"
 ```
+
+The `demo@e.co` / `demo1234` pair in `.env.example` only matches a stack
+bootstrapped from that file; a stack with its own `.env` has its own accounts.
+
+Tokens are not permanent. The `users` collection sets `authToken.duration` to
+`432000`, i.e. 5 days, so any token a client caches goes stale on its own and the
+client has to mint a fresh one once calls start failing with
+`401 {"error":"invalid auth token"}`.
 
 Tools:
 
@@ -174,7 +189,7 @@ Any client that accepts a URL plus headers can use it directly:
 {
   "mcpServers": {
     "ebook": {
-      "url": "http://127.0.0.1:8090/mcp",
+      "url": "https://${PLATFORM_HOST}:18094/mcp",
       "headers": { "Authorization": "Bearer ${EBOOK_PB_TOKEN}" }
     }
   }
@@ -185,13 +200,44 @@ For `pi`, put that block in a file and pass `--mcp-config <file>`; the adapter s
 `"auth": "bearer"` with `"bearerTokenEnv": "EBOOK_PB_TOKEN"` instead of a literal header,
 and prefixes tool names with the server key (`ebook_list_books`, `ebook_get_toc`, ...).
 
-Smoke test with `curl`, keeping the `Mcp-Session-Id` response header for follow-up calls:
+Because the token expires in 5 days, a `bearerTokenEnv` holding a static token goes
+stale silently. Point `bearerToken` at a command instead: a leading `!` marks it as a
+command, and the adapter re-runs it every time the server connects, so the token is
+always fresh:
+
+```json
+{
+  "mcpServers": {
+    "ebook": {
+      "url": "https://${PLATFORM_HOST}:18094/mcp",
+      "auth": "bearer",
+      "bearerToken": "!${HOME}/.config/mcp/ebook-token.sh",
+      "lifecycle": "lazy"
+    }
+  }
+}
+```
+
+where that script runs the `auth-with-password` call above and prints nothing but the
+token.
+
+Smoke test with `curl`. The session is stateful: capture the `Mcp-Session-Id` response
+header from `initialize` and echo it on every later call, or the server answers
+`404 Invalid session ID`:
 
 ```bash
-curl -s -D - -o /dev/null -X POST http://127.0.0.1:8090/mcp \
+# initialize, capturing the session id
+SID=$(curl -s -D - -o /dev/null -X POST https://${PLATFORM_HOST}:18094/mcp \
   -H "Authorization: Bearer $EBOOK_PB_TOKEN" -H 'Content-Type: application/json' \
   -H 'Accept: application/json, text/event-stream' \
-  -d '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-06-18","capabilities":{},"clientInfo":{"name":"curl","version":"0"}}}'
+  -d '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-06-18","capabilities":{},"clientInfo":{"name":"curl","version":"0"}}}' \
+  | sed -n 's/^[Mm]cp-[Ss]ession-[Ii]d: *//p' | tr -d '\r')
+
+# any later call must echo it back
+curl -s -X POST https://${PLATFORM_HOST}:18094/mcp \
+  -H "Authorization: Bearer $EBOOK_PB_TOKEN" -H "Mcp-Session-Id: $SID" \
+  -H 'Content-Type: application/json' -H 'Accept: application/json, text/event-stream' \
+  -d '{"jsonrpc":"2.0","id":2,"method":"tools/list"}'
 ```
 
 ## Development
