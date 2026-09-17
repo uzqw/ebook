@@ -125,18 +125,24 @@ a new root CA that must be installed on every client again.
 ## MCP server
 
 The backend embeds a read-only [Model Context Protocol](https://modelcontextprotocol.io)
-server at `POST /mcp` (streamable HTTP, same PocketBase process, no second service).
-Any MCP client can list the library, walk a book's table of contents, and read
-chapters or page ranges.
+server at `<base-url>/mcp` (streamable HTTP, same PocketBase process, no second
+service). Any MCP client can list the library, walk a book's table of contents, and
+read chapters or page ranges.
+
+Use the URL you already reach the app on. With the defaults from `.env.example`
+(`POCKETBASE_HOST=127.0.0.1`, `POCKETBASE_PORT=8090`) that is
+`http://127.0.0.1:8090/mcp`; the published image example above publishes the
+container port as `18094`, so there it is `http://127.0.0.1:18094/mcp`.
 
 Authentication reuses PocketBase user tokens: send `Authorization: Bearer <token>`.
 Every tool is scoped to the token's user, so one account cannot read another
-account's books. Get a token with:
+account's books. The default demo account from `.env.example` works out of the box:
 
 ```bash
-curl -s -X POST https://<host>:18094/api/collections/users/auth-with-password \
+TOKEN=$(curl -s -X POST http://127.0.0.1:8090/api/collections/users/auth-with-password \
   -H 'Content-Type: application/json' \
-  -d '{"identity":"demo@e.co","password":"demo1234"}' | jq -r .token
+  -d '{"identity":"demo@e.co","password":"demo1234"}' | jq -r .token)
+export EBOOK_PB_TOKEN="$TOKEN"
 ```
 
 Tools:
@@ -168,7 +174,7 @@ Any client that accepts a URL plus headers can use it directly:
 {
   "mcpServers": {
     "ebook": {
-      "url": "https://<host>:18094/mcp",
+      "url": "http://127.0.0.1:8090/mcp",
       "headers": { "Authorization": "Bearer ${EBOOK_PB_TOKEN}" }
     }
   }
@@ -182,7 +188,7 @@ and prefixes tool names with the server key (`ebook_list_books`, `ebook_get_toc`
 Smoke test with `curl`, keeping the `Mcp-Session-Id` response header for follow-up calls:
 
 ```bash
-curl -s -D - -o /dev/null -X POST https://<host>:18094/mcp \
+curl -s -D - -o /dev/null -X POST http://127.0.0.1:8090/mcp \
   -H "Authorization: Bearer $EBOOK_PB_TOKEN" -H 'Content-Type: application/json' \
   -H 'Accept: application/json, text/event-stream' \
   -d '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-06-18","capabilities":{},"clientInfo":{"name":"curl","version":"0"}}}'
