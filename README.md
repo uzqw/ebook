@@ -120,6 +120,73 @@ a new root CA that must be installed on every client again.
 - Page image rendering and extracted page text for reading.
 - Bookmarks, notes, reading progress, and per-book metadata.
 - Shared reading state across devices through one deployed backend.
+- Read-only MCP server so LLM clients can browse the library and read chapters.
+
+## MCP server
+
+The backend embeds a read-only [Model Context Protocol](https://modelcontextprotocol.io)
+server at `POST /mcp` (streamable HTTP, same PocketBase process, no second service).
+Any MCP client can list the library, walk a book's table of contents, and read
+chapters or page ranges.
+
+Authentication reuses PocketBase user tokens: send `Authorization: Bearer <token>`.
+Every tool is scoped to the token's user, so one account cannot read another
+account's books. Get a token with:
+
+```bash
+curl -s -X POST https://<host>:18094/api/collections/users/auth-with-password \
+  -H 'Content-Type: application/json' \
+  -d '{"identity":"demo@e.co","password":"demo1234"}' | jq -r .token
+```
+
+Tools:
+
+| Tool               | Arguments                                           | Returns                                                    |
+| ------------------ | --------------------------------------------------- | ---------------------------------------------------------- |
+| `list_books`       | –                                                   | Books with `title`, `author`, `page_count`, `parse_status` |
+| `get_toc`          | `book_id`                                           | TOC tree: `title`, `page`, `level`, `children`             |
+| `get_section_text` | `book_id`, `section_title`, `start_page` (optional) | Section text plus a `next_page` cursor                     |
+| `get_pages`        | `book_id`, `from_page`, `to_page`                   | Text for an explicit page range                            |
+| `search_in_book`   | `book_id`, `query`                                  | Matches as `page_number` and line snippets                 |
+
+Behaviour worth knowing when calling the tools:
+
+- `get_section_text` ends a section at the page before the next same-or-higher-level
+  TOC entry (the last section runs to the end of the book), returns about ten pages per
+  call, and pages through longer sections with `next_page`.
+- Sections that share their start page with a sibling come back as that single page with
+  `is_partial: true` and a `note`, never as empty text.
+- Page text is joined with `--- p.N ---` separators; responses over roughly 100KB are cut
+  with a `[truncated: ...]` marker and `truncated: true`.
+- The route is registered for `POST` only. The frontend's `GET /{path...}` static route
+  conflicts with an all-methods `/mcp` pattern in Go's `ServeMux`, and streamable HTTP
+  clients send JSON-RPC exclusively over `POST`.
+
+Any client that accepts a URL plus headers can use it directly:
+
+```json
+{
+  "mcpServers": {
+    "ebook": {
+      "url": "https://<host>:18094/mcp",
+      "headers": { "Authorization": "Bearer ${EBOOK_PB_TOKEN}" }
+    }
+  }
+}
+```
+
+For `pi`, put that block in a file and pass `--mcp-config <file>`; the adapter supports
+`"auth": "bearer"` with `"bearerTokenEnv": "EBOOK_PB_TOKEN"` instead of a literal header,
+and prefixes tool names with the server key (`ebook_list_books`, `ebook_get_toc`, ...).
+
+Smoke test with `curl`, keeping the `Mcp-Session-Id` response header for follow-up calls:
+
+```bash
+curl -s -D - -o /dev/null -X POST https://<host>:18094/mcp \
+  -H "Authorization: Bearer $EBOOK_PB_TOKEN" -H 'Content-Type: application/json' \
+  -H 'Accept: application/json, text/event-stream' \
+  -d '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-06-18","capabilities":{},"clientInfo":{"name":"curl","version":"0"}}}'
+```
 
 ## Development
 
