@@ -1759,6 +1759,8 @@ func registerRoutes(app core.App, svc *pdfService) {
 			))
 		})
 
+		registerMCP(app, e)
+
 		e.Router.GET("/api/books/{id}/pages/{page}/image", func(re *core.RequestEvent) error {
 			book, pageNumber, err := authorizedBookPage(app, re)
 			if err != nil {
