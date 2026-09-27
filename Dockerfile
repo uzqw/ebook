@@ -1,5 +1,5 @@
 ARG NODE_IMAGE=node:22-alpine3.21
-ARG GOLANG_IMAGE=golang:1.25-bookworm
+ARG GOLANG_IMAGE=golang:1.25-trixie
 ARG RUNTIME_IMAGE=debian:12-slim
 
 # Shared builder inputs and static assets. This stage usually stays cached for
