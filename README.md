@@ -7,8 +7,11 @@ progress in sync — and let Claude, Cursor, or any MCP client browse your
 library and quote chapters through the built-in read-only MCP server.
 
 ![Library](docs/screenshots/v2-library.png)
-![Reader](docs/screenshots/good-reader.png)
-![Reader on mobile](docs/screenshots/m-dark-reader.png)
+
+<img src="docs/screenshots/good-reader.png" width="700" />
+
+<img src="docs/screenshots/v2-m-library.png" width="280" />
+<img src="docs/screenshots/m-dark-reader.png" width="280" />
 
 **One command:**
 
