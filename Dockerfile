@@ -1,12 +1,13 @@
 ARG NODE_IMAGE=node:22-alpine3.21
 ARG GOLANG_IMAGE=golang:1.25-bookworm
-ARG RUNTIME_IMAGE=ubuntu:24.04
+ARG RUNTIME_IMAGE=debian:12-slim
 
 # Shared builder inputs and static assets. This stage usually stays cached for
 # frontend-only or backend-only changes, so the runtime can reuse its layers.
 FROM ${RUNTIME_IMAGE} AS assets
-RUN sed -i 's/archive.ubuntu.com/mirrors.ustc.edu.cn/g' /etc/apt/sources.list.d/ubuntu.sources \
-  && sed -i 's/security.ubuntu.com/mirrors.ustc.edu.cn/g' /etc/apt/sources.list.d/ubuntu.sources
+RUN if [ -f /etc/apt/sources.list.d/debian.sources ]; then \
+      sed -i 's/deb.debian.org/mirrors.ustc.edu.cn/g' /etc/apt/sources.list.d/debian.sources; \
+    fi
 RUN rm -f /etc/apt/apt.conf.d/docker-clean \
   && echo 'Binary::apt::APT::Keep-Downloaded-Packages "true";' > /etc/apt/apt.conf.d/keep-cache
 RUN --mount=type=cache,id=ebook-reader-apt-cache,target=/var/cache/apt,sharing=locked \
