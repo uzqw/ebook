@@ -1,6 +1,9 @@
 <script setup lang="ts">
 import { computed, nextTick, onBeforeUnmount, ref, watch } from 'vue'
 import Button from '@/components/ui/Button.vue'
+import { useI18n } from 'vue-i18n'
+
+const { t } = useI18n()
 
 const props = withDefaults(
   defineProps<{
@@ -14,10 +17,10 @@ const props = withDefaults(
   }>(),
   {
     description: '',
-    confirmText: '确认',
-    cancelText: '取消',
+    confirmText: '',
+    cancelText: '',
     loading: false,
-    loadingText: '处理中...',
+    loadingText: '',
   },
 )
 
@@ -129,7 +132,9 @@ onBeforeUnmount(() => {
           </p>
         </div>
         <div class="mt-6 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
-          <Button variant="outline" :disabled="loading" @click="close">{{ cancelText }}</Button>
+          <Button variant="outline" :disabled="loading" @click="close">{{
+            cancelText || t('common.cancel')
+          }}</Button>
           <Button variant="destructive" :disabled="loading" @click="emit('confirm')">{{
             loading ? loadingText : confirmText
           }}</Button>

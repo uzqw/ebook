@@ -12,6 +12,9 @@ import {
 } from '@lucide/vue'
 import { clearAuth, currentUser } from '@/services/pocketbase'
 import Button from '@/components/ui/Button.vue'
+import { useI18n } from 'vue-i18n'
+
+const { t } = useI18n()
 
 const router = useRouter()
 const route = useRoute()
@@ -34,7 +37,7 @@ watch(
 
 <template>
   <div class="shell" :class="{ 'shell--sidebar-collapsed': sidebarCollapsed }">
-    <a href="#main-content" class="skip-link">跳到主要内容</a>
+    <a href="#main-content" class="skip-link">{{ t('nav.skipToContent') }}</a>
 
     <!-- Desktop Sidebar (Hidden on mobile) -->
     <aside class="sidebar flex flex-col justify-between hidden md:flex">
@@ -46,15 +49,15 @@ watch(
               >Ebook Reader</span
             >
             <h1 class="mt-0.5 text-lg font-black leading-snug tracking-tight text-[#0f1e14]">
-              青简书房
+              {{ t('app.name') }}
             </h1>
           </div>
           <Button
             variant="outline"
             size="sm"
             class="sidebar-collapse-button shrink-0 px-2"
-            :aria-label="sidebarCollapsed ? '展开侧边栏' : '收起侧边栏'"
-            :title="sidebarCollapsed ? '展开侧边栏' : '收起侧边栏'"
+            :aria-label="sidebarCollapsed ? t('nav.expandSidebar') : t('nav.collapseSidebar')"
+            :title="sidebarCollapsed ? t('nav.expandSidebar') : t('nav.collapseSidebar')"
             @click="sidebarCollapsed = !sidebarCollapsed"
           >
             <ChevronRight v-if="sidebarCollapsed" data-icon="inline-start" />
@@ -62,26 +65,26 @@ watch(
           </Button>
         </div>
 
-        <nav class="nav-links mt-6 flex flex-col gap-1.5" aria-label="主导航">
-          <RouterLink to="/books" class="nav-link" title="书籍管理"
-            ><Library class="nav-link__icon" /><span class="nav-link__label"
-              >书籍管理</span
-            ></RouterLink
+        <nav class="nav-links mt-6 flex flex-col gap-1.5" :aria-label="t('nav.main')">
+          <RouterLink to="/books" class="nav-link" :title="t('nav.books')"
+            ><Library class="nav-link__icon" /><span class="nav-link__label">{{
+              t('nav.books')
+            }}</span></RouterLink
           >
-          <RouterLink to="/books/upload" class="nav-link" title="上传书籍"
-            ><FileUp class="nav-link__icon" /><span class="nav-link__label"
-              >上传书籍</span
-            ></RouterLink
+          <RouterLink to="/books/upload" class="nav-link" :title="t('nav.upload')"
+            ><FileUp class="nav-link__icon" /><span class="nav-link__label">{{
+              t('nav.upload')
+            }}</span></RouterLink
           >
-          <RouterLink to="/notes" class="nav-link" title="笔记管理"
-            ><NotebookPen class="nav-link__icon" /><span class="nav-link__label"
-              >笔记管理</span
-            ></RouterLink
+          <RouterLink to="/notes" class="nav-link" :title="t('nav.notes')"
+            ><NotebookPen class="nav-link__icon" /><span class="nav-link__label">{{
+              t('nav.notes')
+            }}</span></RouterLink
           >
-          <RouterLink to="/summary" class="nav-link" title="阅读汇总"
-            ><ChartNoAxesCombined class="nav-link__icon" /><span class="nav-link__label"
-              >阅读汇总</span
-            ></RouterLink
+          <RouterLink to="/summary" class="nav-link" :title="t('nav.summary')"
+            ><ChartNoAxesCombined class="nav-link__icon" /><span class="nav-link__label">{{
+              t('nav.summary')
+            }}</span></RouterLink
           >
         </nav>
       </div>
@@ -90,9 +93,9 @@ watch(
         <div
           class="sidebar-user-card rounded-xl border border-emerald-500/10 bg-white p-3.5 shadow-sm"
         >
-          <span class="block text-[10px] font-extrabold uppercase tracking-wider text-[#4a5c50]"
-            >当前读者</span
-          >
+          <span class="block text-[10px] font-extrabold uppercase tracking-wider text-[#4a5c50]">{{
+            t('nav.currentReader')
+          }}</span>
           <strong
             class="mt-0.5 block truncate text-sm font-bold text-[#0f1e14]"
             :title="userName"
@@ -102,11 +105,11 @@ watch(
         <Button
           variant="outline"
           class="sidebar-logout w-full text-red-700 hover:bg-red-50 hover:text-red-800"
-          aria-label="退出登录"
+          :aria-label="t('nav.logout')"
           @click="logout"
-          ><LogOut data-icon="inline-start" /><span class="sidebar-logout-label"
-            >退出登录</span
-          ></Button
+          ><LogOut data-icon="inline-start" /><span class="sidebar-logout-label">{{
+            t('nav.logout')
+          }}</span></Button
         >
       </div>
     </aside>
@@ -115,7 +118,7 @@ watch(
     <header
       class="mobile-header md:hidden flex items-center justify-between px-4 py-3 bg-[#fbfcfb] border-b border-emerald-500/5 sticky top-0 z-40"
     >
-      <h1 class="text-base font-black text-[#0f1e14]">青简书房</h1>
+      <h1 class="text-base font-black text-[#0f1e14]">{{ t('app.name') }}</h1>
       <div class="flex items-center gap-2">
         <span class="text-xs font-semibold text-[#4a5c50] truncate max-w-28" :title="userName">{{
           userName
@@ -124,7 +127,7 @@ watch(
           variant="ghost"
           size="sm"
           class="text-red-700 hover:bg-red-50 p-2 h-8 w-8 rounded-lg"
-          aria-label="退出登录"
+          :aria-label="t('nav.logout')"
           @click="logout"
         >
           <LogOut class="size-4" />
@@ -142,7 +145,7 @@ watch(
         active-class="mobile-nav-link-active"
       >
         <Library class="size-5" />
-        <span class="text-[9px] mt-0.5 font-bold">书架</span>
+        <span class="text-[9px] mt-0.5 font-bold">{{ t('nav.library') }}</span>
       </RouterLink>
       <RouterLink
         to="/books/upload"
@@ -150,7 +153,7 @@ watch(
         active-class="mobile-nav-link-active"
       >
         <FileUp class="size-5" />
-        <span class="text-[9px] mt-0.5 font-bold">上传</span>
+        <span class="text-[9px] mt-0.5 font-bold">{{ t('nav.upload') }}</span>
       </RouterLink>
       <RouterLink
         to="/notes"
@@ -158,7 +161,7 @@ watch(
         active-class="mobile-nav-link-active"
       >
         <NotebookPen class="size-5" />
-        <span class="text-[9px] mt-0.5 font-bold">笔记</span>
+        <span class="text-[9px] mt-0.5 font-bold">{{ t('nav.notes') }}</span>
       </RouterLink>
       <RouterLink
         to="/summary"
@@ -166,7 +169,7 @@ watch(
         active-class="mobile-nav-link-active"
       >
         <ChartNoAxesCombined class="size-5" />
-        <span class="text-[9px] mt-0.5 font-bold">汇总</span>
+        <span class="text-[9px] mt-0.5 font-bold">{{ t('nav.summary') }}</span>
       </RouterLink>
     </nav>
 

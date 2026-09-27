@@ -1,8 +1,9 @@
 import { createApp } from 'vue'
 import App from './App.vue'
 import { router } from './router'
+import { i18n } from './i18n'
 import './styles/main.css'
 import { installCachedCjkFont } from '@/services/font-cache'
 
-createApp(App).use(router).mount('#app')
+createApp(App).use(router).use(i18n).mount('#app')
 void installCachedCjkFont(document, false).catch(() => {})

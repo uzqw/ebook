@@ -36,6 +36,9 @@ import type {
 import Button from '@/components/ui/Button.vue'
 import Textarea from '@/components/ui/Textarea.vue'
 import Badge from '@/components/ui/Badge.vue'
+import { useI18n } from 'vue-i18n'
+
+const { t } = useI18n()
 
 const props = defineProps<{ id: string }>()
 const router = useRouter()
@@ -64,11 +67,41 @@ interface ReaderThemeOption {
 }
 
 const readerThemes: ReaderThemeOption[] = [
-  { id: 'paper', name: '纸张', description: '明亮', page: '#ffffff', text: '#142217' },
-  { id: 'ink', name: '墨夜', description: '柔和黑', page: '#1b211d', text: '#dbe5dc' },
-  { id: 'midnight', name: '深海', description: '深蓝', page: '#131c2b', text: '#dbe7f4' },
-  { id: 'coffee', name: '夜棕', description: '暖棕', page: '#29201b', text: '#eadaca' },
-  { id: 'oled', name: '纯黑', description: '省电', page: '#050505', text: '#d8d8d8' },
+  {
+    id: 'paper',
+    name: t('theme.paper'),
+    description: t('theme.paperDesc'),
+    page: '#ffffff',
+    text: '#142217',
+  },
+  {
+    id: 'ink',
+    name: t('theme.ink'),
+    description: t('theme.inkDesc'),
+    page: '#1b211d',
+    text: '#dbe5dc',
+  },
+  {
+    id: 'midnight',
+    name: t('theme.midnight'),
+    description: t('theme.midnightDesc'),
+    page: '#131c2b',
+    text: '#dbe7f4',
+  },
+  {
+    id: 'coffee',
+    name: t('theme.coffee'),
+    description: t('theme.coffeeDesc'),
+    page: '#29201b',
+    text: '#eadaca',
+  },
+  {
+    id: 'oled',
+    name: t('theme.oled'),
+    description: t('theme.oledDesc'),
+    page: '#050505',
+    text: '#d8d8d8',
+  },
 ]
 
 function storedReaderTheme(): ReaderTheme {
@@ -229,7 +262,7 @@ async function applyCachedFontToFrame() {
     await installCachedCjkFont(doc, true)
     window.setTimeout(() => frame.contentWindow?.dispatchEvent(new Event('resize')), 0)
   } catch (err) {
-    error.value = err instanceof Error ? err.message : '字体加载失败'
+    error.value = err instanceof Error ? err.message : t('reader.fontFailed')
   }
 }
 function clearPageBackdrop() {
@@ -293,7 +326,7 @@ async function loadPageHtml() {
   } catch (err) {
     if (requestId === pageHtmlRequestId) {
       rawPageHtml.value = ''
-      error.value = err instanceof Error ? err.message : '页面加载失败'
+      error.value = err instanceof Error ? err.message : t('reader.pageFailed')
     }
   }
 }
@@ -312,7 +345,7 @@ async function loadPageIllustrations() {
   } catch (err) {
     if (requestId === illustrationsRequestId) {
       pageIllustrations.value = []
-      error.value = err instanceof Error ? err.message : '页面插图加载失败'
+      error.value = err instanceof Error ? err.message : t('reader.illustFailed')
     }
   } finally {
     if (requestId === illustrationsRequestId) illustrationsLoading.value = false
@@ -335,7 +368,7 @@ const tocItems = computed<TocDisplayItem[]>(() => {
   const walk = (items: BookTocItem[] = [], fallbackLevel = 1) => {
     for (const item of items) {
       result.push({
-        title: item.title || `第 ${item.page} 页`,
+        title: item.title || t('common.pageN', { n: item.page }),
         page: item.page || 1,
         level: item.level || fallbackLevel,
       })
@@ -347,7 +380,9 @@ const tocItems = computed<TocDisplayItem[]>(() => {
 })
 const pageIndexItems = computed(() =>
   pages.value.map((item) => ({
-    title: item.text?.replace(/\s+/g, ' ').trim().slice(0, 42) || `第 ${item.page_number} 页`,
+    title:
+      item.text?.replace(/\s+/g, ' ').trim().slice(0, 42) ||
+      t('common.pageN', { n: item.page_number }),
     page: item.page_number,
     level: 1,
   })),
@@ -355,22 +390,28 @@ const pageIndexItems = computed(() =>
 const navigationItems = computed(() =>
   tocItems.value.length ? tocItems.value : pageIndexItems.value,
 )
-const navigationTitle = computed(() => (tocItems.value.length ? '文档目录' : '页面索引'))
+const navigationTitle = computed(() =>
+  tocItems.value.length ? t('reader.navToc') : t('reader.navPages'),
+)
 const sidePanelTitle = computed(() =>
   activeSidePanel.value === 'index'
     ? navigationTitle.value
     : activeSidePanel.value === 'bookmarks'
-      ? '书签'
+      ? t('reader.bookmarks')
       : activeSidePanel.value === 'notes'
-        ? '笔记'
+        ? t('reader.notes')
         : '',
 )
 function clampPage(target: number) {
   return Math.min(pageCount.value, Math.max(1, target))
 }
 const statusText = (status: string) =>
-  ({ pending: '待解析', processing: '解析中', completed: '已解析', failed: '解析失败' })[status] ||
-  status
+  ({
+    pending: t('status.pending'),
+    processing: t('status.processing'),
+    completed: t('status.completed'),
+    failed: t('status.failed'),
+  })[status] || status
 function initialPage() {
   const queryPage = Number(route.query.page)
   return clampPage(
@@ -441,12 +482,12 @@ async function load() {
             await loadPageMedia()
           }
         } catch (err) {
-          error.value = err instanceof Error ? err.message : '刷新解析状态失败'
+          error.value = err instanceof Error ? err.message : t('reader.refreshStatusFailed')
         }
       }, 2000)
     }
   } catch (err) {
-    error.value = err instanceof Error ? err.message : '加载失败'
+    error.value = err instanceof Error ? err.message : t('reader.loadFailed')
   } finally {
     loading.value = false
     canAutoSave.value = true
@@ -567,7 +608,7 @@ function scheduleSaveProgress() {
     try {
       await saveProgress()
     } catch (err) {
-      error.value = err instanceof Error ? err.message : '保存阅读进度失败'
+      error.value = err instanceof Error ? err.message : t('reader.progressFailed')
     }
   }, 350)
 }
@@ -577,12 +618,12 @@ async function addBookmark() {
     await bookmarksApi.create(
       book.value.id,
       page.value,
-      `第 ${page.value} 页`,
+      t('common.pageN', { n: page.value }),
       currentPage.value?.text?.slice(0, 80) || '',
     )
     bookmarks.value = await bookmarksApi.list(book.value.id)
   } catch (err) {
-    error.value = err instanceof Error ? err.message : '添加书签失败'
+    error.value = err instanceof Error ? err.message : t('reader.bookmarkFailed')
   }
 }
 async function addNote() {
@@ -592,7 +633,7 @@ async function addNote() {
     noteText.value = ''
     notes.value = await notesApi.list(book.value.id)
   } catch (err) {
-    error.value = err instanceof Error ? err.message : '保存笔记失败'
+    error.value = err instanceof Error ? err.message : t('reader.saveFailed')
   }
 }
 
@@ -639,7 +680,7 @@ onBeforeUnmount(() => {
   if (saveTimer.value !== null) window.clearTimeout(saveTimer.value)
   if (saveQueued.value) {
     void saveProgress().catch((err) => {
-      error.value = err instanceof Error ? err.message : '保存阅读进度失败'
+      error.value = err instanceof Error ? err.message : t('reader.progressFailed')
     })
   }
   narrowViewportQuery.removeEventListener('change', onViewportChange)
@@ -665,7 +706,7 @@ onBeforeUnmount(() => {
       class="fixed left-1/2 top-4 z-[60] flex w-[calc(100%-2rem)] max-w-lg -translate-x-1/2 items-center justify-between gap-2 rounded-xl border border-red-200 bg-red-50 p-3 text-sm font-semibold text-red-700 shadow-lg"
     >
       <span>{{ error }}</span>
-      <Button size="sm" variant="outline" @click="load">重试</Button>
+      <Button size="sm" variant="outline" @click="load">{{ t('common.retry') }}</Button>
     </div>
 
     <Transition name="reader-chrome">
@@ -674,17 +715,17 @@ onBeforeUnmount(() => {
         class="reader-chrome reader-chrome--top fixed left-1/2 top-3 z-40 flex w-[calc(100%-1.5rem)] max-w-5xl -translate-x-1/2 flex-wrap items-center gap-x-1 gap-y-2 px-2 py-1.5"
       >
         <Button variant="ghost" size="sm" @click="router.push('/books')"
-          ><ArrowLeft data-icon="inline-start" />书架</Button
+          ><ArrowLeft data-icon="inline-start" />{{ t('reader.backToLibrary') }}</Button
         >
         <strong class="reader-title min-w-0 flex-1 truncate px-1 text-sm text-[#142217]">{{
-          book?.title || '书籍阅读'
+          book?.title || t('reader.bookReading')
         }}</strong>
         <Button
           variant="ghost"
           size="sm"
           class="reader-theme-trigger px-2 md:hidden"
-          title="阅读主题"
-          aria-label="选择阅读主题"
+          :title="t('reader.theme')"
+          :aria-label="t('reader.pickTheme')"
           :aria-expanded="themeMenuOpen"
           @click="themeMenuOpen = !themeMenuOpen"
           ><Palette data-icon="inline-start"
@@ -706,8 +747,8 @@ onBeforeUnmount(() => {
             variant="ghost"
             size="sm"
             class="px-2"
-            title="刷新"
-            aria-label="刷新"
+            :title="t('reader.refresh')"
+            :aria-label="t('reader.refresh')"
             @click="load"
             ><RefreshCw data-icon="inline-start"
           /></Button>
@@ -716,8 +757,8 @@ onBeforeUnmount(() => {
             variant="ghost"
             size="sm"
             class="px-2"
-            title="书籍信息"
-            aria-label="书籍信息"
+            :title="t('reader.bookInfo')"
+            :aria-label="t('reader.bookInfo')"
             @click="router.push(`/books/${book.id}/info`)"
             ><Info data-icon="inline-start"
           /></Button>
@@ -727,8 +768,8 @@ onBeforeUnmount(() => {
             variant="ghost"
             size="sm"
             class="px-2"
-            title="缩小"
-            aria-label="缩小"
+            :title="t('reader.zoomOut')"
+            :aria-label="t('reader.zoomOut')"
             @click="zoomOut"
             ><ZoomOut data-icon="inline-start"
           /></Button>
@@ -739,8 +780,8 @@ onBeforeUnmount(() => {
             variant="ghost"
             size="sm"
             class="px-2"
-            title="放大"
-            aria-label="放大"
+            :title="t('reader.zoomIn')"
+            :aria-label="t('reader.zoomIn')"
             @click="zoomIn"
             ><ZoomIn data-icon="inline-start"
           /></Button>
@@ -748,8 +789,8 @@ onBeforeUnmount(() => {
             variant="ghost"
             size="sm"
             class="reader-reset-zoom px-2"
-            title="重置缩放"
-            aria-label="重置缩放"
+            :title="t('reader.resetZoom')"
+            :aria-label="t('reader.resetZoom')"
             @click="resetZoom"
             ><RotateCcw data-icon="inline-start"
           /></Button>
@@ -758,10 +799,10 @@ onBeforeUnmount(() => {
             size="sm"
             :class="reflowEnabled ? 'bg-[#dcebdc]' : ''"
             :aria-pressed="reflowEnabled"
-            :title="reflowEnabled ? '切换到原版页面' : '切换到自适应排版'"
+            :title="reflowEnabled ? t('reader.toOriginal') : t('reader.toReflow')"
             @click="toggleLayoutMode"
             ><BookOpenText data-icon="inline-start" /><span class="reader-layout-label">{{
-              reflowEnabled ? '自适应' : '原版'
+              reflowEnabled ? t('reader.reflow') : t('reader.original')
             }}</span></Button
           >
         </div>
@@ -772,7 +813,7 @@ onBeforeUnmount(() => {
             :class="activeSidePanel === 'index' ? 'bg-[#dcebdc]' : ''"
             :aria-pressed="activeSidePanel === 'index'"
             @click="toggleSidePanel('index')"
-            ><ListTree data-icon="inline-start" />目录</Button
+            ><ListTree data-icon="inline-start" />{{ t('reader.toc') }}</Button
           >
           <Button
             variant="ghost"
@@ -780,7 +821,7 @@ onBeforeUnmount(() => {
             :class="activeSidePanel === 'bookmarks' ? 'bg-[#dcebdc]' : ''"
             :aria-pressed="activeSidePanel === 'bookmarks'"
             @click="toggleSidePanel('bookmarks')"
-            ><BookMarked data-icon="inline-start" />书签</Button
+            ><BookMarked data-icon="inline-start" />{{ t('reader.bookmarks') }}</Button
           >
           <Button
             variant="ghost"
@@ -788,7 +829,7 @@ onBeforeUnmount(() => {
             :class="activeSidePanel === 'notes' ? 'bg-[#dcebdc]' : ''"
             :aria-pressed="activeSidePanel === 'notes'"
             @click="toggleSidePanel('notes')"
-            ><NotebookPen data-icon="inline-start" />笔记</Button
+            ><NotebookPen data-icon="inline-start" />{{ t('reader.notes') }}</Button
           >
         </div>
       </header>
@@ -799,7 +840,7 @@ onBeforeUnmount(() => {
         v-if="themeMenuOpen && narrowViewport"
         class="reader-chrome reader-theme-menu fixed left-1/2 top-[4.25rem] z-50 grid w-[calc(100%-1.5rem)] -translate-x-1/2 grid-cols-5 gap-1.5 p-2"
         role="group"
-        aria-label="阅读主题"
+        :aria-label="t('reader.theme')"
       >
         <button
           v-for="theme in readerThemes"
@@ -814,7 +855,7 @@ onBeforeUnmount(() => {
             class="reader-theme-swatch"
             :style="{ background: theme.page, color: theme.text }"
             aria-hidden="true"
-            >文</span
+            >{{ t('reader.themeSwatch') }}</span
           >
           <strong>{{ theme.name }}</strong>
           <small>{{ theme.description }}</small>
@@ -824,7 +865,7 @@ onBeforeUnmount(() => {
 
     <div v-if="loading" class="reader-column px-3 pt-24">
       <div class="panel flex items-center gap-2 text-[#384c3d]">
-        <Loader2 class="size-4 animate-spin" />正在打开书籍...
+        <Loader2 class="size-4 animate-spin" />{{ t('reader.opening') }}
       </div>
     </div>
 
@@ -837,7 +878,7 @@ onBeforeUnmount(() => {
       @click="handlePageTap"
     >
       <div v-if="book.parse_status !== 'completed'" class="panel mb-4 text-sm text-[#384c3d]">
-        解析尚未完成。若刚上传，请稍后刷新；失败时可查看书籍信息里的错误。
+        {{ t('reader.notParsed') }}
       </div>
       <article
         v-if="canRenderPage && reflowEnabled && (reflowItems.length || illustrationsLoading)"
@@ -851,10 +892,10 @@ onBeforeUnmount(() => {
             v-if="item.kind === 'image'"
             type="button"
             class="reader-reflow-image"
-            aria-label="放大查看书中插图"
+            :aria-label="t('reader.expandIllustration')"
             @click.stop="openExpandedImage(item.image.src)"
           >
-            <img :src="item.image.src" alt="书中插图" />
+            <img :src="item.image.src" :alt="t('reader.illustration')" />
           </button>
           <h2 v-else-if="item.kind === 'heading'" class="reader-reflow-heading">
             {{ item.text }}
@@ -865,15 +906,17 @@ onBeforeUnmount(() => {
           v-if="illustrationsLoading"
           class="flex items-center justify-center gap-2 py-4 text-sm"
         >
-          <Loader2 class="size-4 animate-spin" />正在加载插图...
+          <Loader2 class="size-4 animate-spin" />{{ t('reader.loadingIllustrations') }}
         </div>
       </article>
       <div
         v-else-if="canRenderPage && reflowEnabled"
         class="reader-page reader-reflow-page flex min-h-72 select-text flex-col items-center justify-center gap-4 text-center"
       >
-        <p class="text-sm text-[#384c3d]">当前页没有可重排的文本，可能是扫描页或插图页。</p>
-        <Button variant="outline" size="sm" @click="showOriginalPage">查看原版页面</Button>
+        <p class="text-sm text-[#384c3d]">{{ t('reader.noReflowText') }}</p>
+        <Button variant="outline" size="sm" @click="showOriginalPage">{{
+          t('reader.viewOriginal')
+        }}</Button>
       </div>
       <div
         v-else-if="canRenderPage"
@@ -887,7 +930,7 @@ onBeforeUnmount(() => {
           <iframe
             ref="readerFrame"
             :srcdoc="pageHtml"
-            title="书页内容"
+            :title="t('reader.pageContent')"
             sandbox="allow-scripts allow-same-origin"
             class="w-full border-0 bg-white"
             :style="{ height: iframeHeight + 'px' }"
@@ -905,23 +948,23 @@ onBeforeUnmount(() => {
               width: `${illustration.width * 100}%`,
               height: `${illustration.height * 100}%`,
             }"
-            aria-label="放大查看书中插图"
+            :aria-label="t('reader.expandIllustration')"
             @click.stop="openExpandedImage(illustration.src)"
           />
           <div
             v-if="pageHtmlLoading"
             class="absolute inset-0 z-10 flex min-h-72 items-center justify-center gap-2 bg-white/75 text-sm font-semibold text-[#384c3d]"
           >
-            <Loader2 class="size-4 animate-spin" />正在加载页面...
+            <Loader2 class="size-4 animate-spin" />{{ t('reader.loadingPage') }}
           </div>
         </div>
       </div>
-      <div v-else class="panel text-sm text-[#384c3d]">解析完成后将显示书页，请稍后刷新。</div>
+      <div v-else class="panel text-sm text-[#384c3d]">{{ t('reader.waitForParse') }}</div>
     </main>
 
     <img
       ref="imagePreviewEl"
-      alt="放大的书中图片"
+      :alt="t('reader.zoomedImage')"
       class="reader-viewer-source"
       :src="expandedImage"
     />
@@ -936,8 +979,8 @@ onBeforeUnmount(() => {
           size="sm"
           class="px-2"
           :disabled="page <= 1"
-          aria-label="上一页"
-          title="上一页"
+          :aria-label="t('reader.prevPage')"
+          :title="t('reader.prevPage')"
           @click="prev"
           ><ChevronLeft data-icon="inline-start"
         /></Button>
@@ -949,8 +992,8 @@ onBeforeUnmount(() => {
           size="sm"
           class="px-2"
           :disabled="page >= pageCount"
-          aria-label="下一页"
-          title="下一页"
+          :aria-label="t('reader.nextPage')"
+          :title="t('reader.nextPage')"
           @click="next"
           ><ChevronRight data-icon="inline-start"
         /></Button>
@@ -961,7 +1004,7 @@ onBeforeUnmount(() => {
           :max="pageCount"
           class="h-8 w-16 rounded-md border border-input bg-white px-2 text-center text-xs"
           :placeholder="String(page)"
-          aria-label="跳转到页码"
+          :aria-label="t('reader.jumpTo')"
           @keyup.enter="jumpToPage"
         />
       </div>
@@ -986,8 +1029,8 @@ onBeforeUnmount(() => {
             variant="ghost"
             size="sm"
             class="px-2"
-            title="收起"
-            aria-label="收起面板"
+            :title="t('reader.collapsePanel')"
+            :aria-label="t('reader.collapsePanelAria')"
             @click="activeSidePanel = null"
             ><X data-icon="inline-start"
           /></Button>
@@ -996,12 +1039,12 @@ onBeforeUnmount(() => {
           <template v-if="activeSidePanel === 'index'">
             <div class="mb-3 flex items-center justify-between gap-2">
               <p class="text-xs text-[#384c3d]">
-                {{ tocItems.length ? '电子书内置目录' : '由页面文本生成' }}
+                {{ tocItems.length ? t('reader.tocBuiltin') : t('reader.tocGenerated') }}
               </p>
               <Badge tone="slate">{{ navigationItems.length }}</Badge>
             </div>
             <div v-if="!navigationItems.length" class="text-sm text-[#384c3d]">
-              解析完成后显示目录或页面索引。
+              {{ t('reader.tocEmpty') }}
             </div>
             <div v-else class="flex flex-col gap-1.5">
               <button
@@ -1017,7 +1060,9 @@ onBeforeUnmount(() => {
                 @click="goToPage(item.page)"
               >
                 <span class="block truncate">{{ item.title }}</span>
-                <span class="text-xs text-[#64748b]">第 {{ item.page }} 页</span>
+                <span class="text-xs text-[#64748b]">{{
+                  t('common.pageN', { n: item.page })
+                }}</span>
               </button>
             </div>
           </template>
@@ -1025,10 +1070,12 @@ onBeforeUnmount(() => {
           <template v-else-if="activeSidePanel === 'bookmarks'">
             <div class="mb-3 flex items-center justify-end">
               <Button size="sm" @click="addBookmark"
-                ><BookmarkPlus data-icon="inline-start" />添加当前页</Button
+                ><BookmarkPlus data-icon="inline-start" />{{ t('reader.addBookmark') }}</Button
               >
             </div>
-            <div v-if="!bookmarks.length" class="text-sm text-[#384c3d]">暂无书签</div>
+            <div v-if="!bookmarks.length" class="text-sm text-[#384c3d]">
+              {{ t('reader.noBookmarks') }}
+            </div>
             <div v-else class="flex flex-col gap-2">
               <button
                 v-for="mark in bookmarks"
@@ -1036,22 +1083,24 @@ onBeforeUnmount(() => {
                 class="block w-full rounded-lg border border-[#cbe0bf] bg-white p-3 text-left text-sm hover:bg-[#edf3e8]"
                 @click="goToPage(mark.page_number)"
               >
-                <strong>第 {{ mark.page_number }} 页</strong>
+                <strong>{{ t('common.pageN', { n: mark.page_number }) }}</strong>
                 <p class="line-clamp-2 text-[#384c3d]">{{ mark.note }}</p>
               </button>
             </div>
           </template>
 
           <template v-else>
-            <Textarea v-model="noteText" placeholder="记录这一页的想法..." />
-            <Button class="mt-2 w-full" size="sm" @click="addNote">保存笔记</Button>
+            <Textarea v-model="noteText" :placeholder="t('reader.notePlaceholder')" />
+            <Button class="mt-2 w-full" size="sm" @click="addNote">{{
+              t('reader.saveNote')
+            }}</Button>
             <div class="mt-4 flex flex-col gap-2">
               <article
                 v-for="note in notes"
                 :key="note.id"
                 class="rounded-lg border border-[#cbe0bf] bg-white p-3 text-sm"
               >
-                <strong>第 {{ note.page_number }} 页</strong>
+                <strong>{{ t('common.pageN', { n: note.page_number }) }}</strong>
                 <p class="mt-1 whitespace-pre-wrap text-[#384c3d]">{{ note.content }}</p>
               </article>
             </div>

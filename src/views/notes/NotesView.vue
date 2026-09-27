@@ -5,6 +5,9 @@ import { Loader2, NotebookPen, ExternalLink } from '@lucide/vue'
 import { booksApi, notesApi } from '@/services/api'
 import type { BookRecord, NoteRecord } from '@/types/models'
 import Button from '@/components/ui/Button.vue'
+import { useI18n } from 'vue-i18n'
+
+const { t } = useI18n()
 
 const books = ref<BookRecord[]>([])
 const notesByBook = ref<Record<string, NoteRecord[]>>({})
@@ -22,7 +25,7 @@ async function load() {
     )
     notesByBook.value = Object.fromEntries(entries)
   } catch (err) {
-    error.value = err instanceof Error ? err.message : '加载失败'
+    error.value = err instanceof Error ? err.message : t('notes.loadFailed')
   } finally {
     loading.value = false
   }
@@ -38,9 +41,11 @@ onMounted(load)
         <p class="text-xs font-extrabold uppercase tracking-widest text-[#0f7643] hidden sm:block">
           Notes
         </p>
-        <h1 class="text-xl sm:text-3xl font-black text-[#0f1e14] tracking-tight">笔记管理</h1>
+        <h1 class="text-xl sm:text-3xl font-black text-[#0f1e14] tracking-tight">
+          {{ t('notes.title') }}
+        </h1>
         <p class="mt-1 text-sm text-[#4a5c50] hidden sm:block">
-          按书籍汇总您在阅读中记录的页面重点与想法心得。
+          {{ t('notes.subtitle') }}
         </p>
       </div>
     </div>
@@ -51,11 +56,11 @@ onMounted(load)
       class="mb-4 flex flex-wrap items-center justify-between gap-2 rounded-lg border border-red-200 bg-red-50 p-3 text-sm font-semibold text-red-700"
     >
       <span>{{ error }}</span>
-      <Button size="sm" variant="outline" @click="load">重试</Button>
+      <Button size="sm" variant="outline" @click="load">{{ t('common.retry') }}</Button>
     </div>
 
     <div v-if="loading" class="panel flex items-center gap-2 text-[#4a5c50]">
-      <Loader2 class="size-4 animate-spin text-[#0f7643]" />正在加载笔记...
+      <Loader2 class="size-4 animate-spin text-[#0f7643]" />{{ t('notes.loading') }}
     </div>
 
     <div v-else class="grid gap-6">
@@ -71,12 +76,12 @@ onMounted(load)
             v-if="notesByBook[book.id]?.length"
             class="text-xs font-semibold px-2 py-0.5 rounded-full bg-emerald-50 text-[#0f7643] border border-emerald-500/10"
           >
-            {{ notesByBook[book.id].length }} 条笔记
+            {{ t('notes.count', { n: notesByBook[book.id].length }) }}
           </span>
         </div>
 
         <div v-if="!notesByBook[book.id]?.length" class="text-xs text-[#4a5c50]/60 italic py-1">
-          暂无笔记。在阅读书籍时选中任意段落即可记录您的读书笔记。
+          {{ t('notes.empty') }}
         </div>
 
         <div v-else class="grid gap-3 mt-1 grid-cols-1 md:grid-cols-2">
@@ -94,7 +99,7 @@ onMounted(load)
                 class="inline-flex items-center gap-1 text-xs font-bold text-[#0f7643] hover:underline"
                 :to="`/books/${book.id}/read?page=${note.page_number}`"
               >
-                <span>第 {{ note.page_number }} 页</span>
+                <span>{{ t('common.pageN', { n: note.page_number }) }}</span>
                 <ExternalLink class="size-3" />
               </RouterLink>
             </div>

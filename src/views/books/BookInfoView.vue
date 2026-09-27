@@ -3,6 +3,9 @@ import { onMounted, ref } from 'vue'
 import { booksApi, pagesApi } from '@/services/api'
 import type { BookPageRecord, BookRecord } from '@/types/models'
 import Badge from '@/components/ui/Badge.vue'
+import { useI18n } from 'vue-i18n'
+
+const { t } = useI18n()
 const props = defineProps<{ id: string }>()
 const book = ref<BookRecord | null>(null)
 const pages = ref<BookPageRecord[]>([])
@@ -12,7 +15,7 @@ onMounted(async () => {
     book.value = await booksApi.detail(props.id)
     pages.value = await pagesApi.list(props.id)
   } catch (err) {
-    error.value = err instanceof Error ? err.message : '加载失败'
+    error.value = err instanceof Error ? err.message : t('bookInfo.loadFailed')
   }
 })
 </script>
@@ -21,7 +24,7 @@ onMounted(async () => {
     <div class="page-header">
       <div>
         <p class="text-xs font-extrabold uppercase tracking-widest text-[#705c21]">Book Info</p>
-        <h1 class="text-3xl font-extrabold text-[#142217]">书籍信息</h1>
+        <h1 class="text-3xl font-extrabold text-[#142217]">{{ t('bookInfo.title') }}</h1>
       </div>
     </div>
     <p
@@ -35,7 +38,7 @@ onMounted(async () => {
       <div class="flex items-start justify-between gap-3">
         <div>
           <h2 class="text-2xl font-extrabold">{{ book.title }}</h2>
-          <p class="text-[#384c3d]">{{ book.author || '未知作者' }}</p>
+          <p class="text-[#384c3d]">{{ book.author || t('common.unknownAuthor') }}</p>
         </div>
         <Badge
           :tone="
@@ -48,18 +51,20 @@ onMounted(async () => {
           >{{ book.parse_status }}</Badge
         >
       </div>
-      <p class="text-[#384c3d]">{{ book.description || '暂无简介' }}</p>
+      <p class="text-[#384c3d]">{{ book.description || t('bookInfo.noDesc') }}</p>
       <dl class="grid gap-3 md:grid-cols-3">
         <div class="rounded-lg bg-[#edf3e8] p-4">
-          <dt class="text-xs font-bold uppercase text-[#384c3d]">页数</dt>
+          <dt class="text-xs font-bold uppercase text-[#384c3d]">{{ t('bookInfo.pages') }}</dt>
           <dd class="mt-1 text-2xl font-extrabold">{{ book.page_count || pages.length || 0 }}</dd>
         </div>
         <div class="rounded-lg bg-[#edf3e8] p-4">
-          <dt class="text-xs font-bold uppercase text-[#384c3d]">当前页</dt>
+          <dt class="text-xs font-bold uppercase text-[#384c3d]">
+            {{ t('bookInfo.currentPage') }}
+          </dt>
           <dd class="mt-1 text-2xl font-extrabold">{{ book.current_page || 1 }}</dd>
         </div>
         <div class="rounded-lg bg-[#edf3e8] p-4">
-          <dt class="text-xs font-bold uppercase text-[#384c3d]">解析页文本</dt>
+          <dt class="text-xs font-bold uppercase text-[#384c3d]">{{ t('bookInfo.parsedText') }}</dt>
           <dd class="mt-1 text-2xl font-extrabold">{{ pages.length }}</dd>
         </div>
       </dl>

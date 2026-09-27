@@ -5,6 +5,9 @@ import { Loader2, BookOpen, Clock, TrendingUp, History } from '@lucide/vue'
 import { readingApi } from '@/services/api'
 import type { ReadingRecord } from '@/types/models'
 import Button from '@/components/ui/Button.vue'
+import { useI18n } from 'vue-i18n'
+
+const { t } = useI18n()
 
 const records = ref<ReadingRecord[]>([])
 const loading = ref(true)
@@ -20,7 +23,7 @@ async function load() {
   try {
     records.value = await readingApi.list()
   } catch (err) {
-    error.value = err instanceof Error ? err.message : '加载失败'
+    error.value = err instanceof Error ? err.message : t('summary.loadFailed')
   } finally {
     loading.value = false
   }
@@ -36,9 +39,11 @@ onMounted(load)
         <p class="text-xs font-extrabold uppercase tracking-widest text-[#0f7643] hidden sm:block">
           Summary
         </p>
-        <h1 class="text-xl sm:text-3xl font-black text-[#0f1e14] tracking-tight">阅读记录汇总</h1>
+        <h1 class="text-xl sm:text-3xl font-black text-[#0f1e14] tracking-tight">
+          {{ t('summary.title') }}
+        </h1>
         <p class="mt-1 text-sm text-[#4a5c50] hidden sm:block">
-          追踪并统计您的阅读偏好、时长以及每本书的阅读进度。
+          {{ t('summary.subtitle') }}
         </p>
       </div>
     </div>
@@ -49,11 +54,11 @@ onMounted(load)
       class="mb-4 flex flex-wrap items-center justify-between gap-2 rounded-lg border border-red-200 bg-red-50 p-3 text-sm font-semibold text-red-700"
     >
       <span>{{ error }}</span>
-      <Button size="sm" variant="outline" @click="load">重试</Button>
+      <Button size="sm" variant="outline" @click="load">{{ t('common.retry') }}</Button>
     </div>
 
     <div v-if="loading" class="panel flex items-center gap-2 text-[#4a5c50]">
-      <Loader2 class="size-4 animate-spin text-[#0f7643]" />正在加载阅读记录...
+      <Loader2 class="size-4 animate-spin text-[#0f7643]" />{{ t('summary.loading') }}
     </div>
 
     <template v-else>
@@ -66,9 +71,14 @@ onMounted(load)
             <BookOpen class="size-5 sm:size-6" />
           </div>
           <div>
-            <p class="text-xs font-extrabold uppercase tracking-wider text-[#4a5c50]">阅读书籍</p>
+            <p class="text-xs font-extrabold uppercase tracking-wider text-[#4a5c50]">
+              {{ t('summary.booksRead') }}
+            </p>
             <strong class="mt-0.5 block text-2xl font-black text-[#0f1e14]"
-              >{{ totalBooks }} <span class="text-xs font-semibold text-[#4a5c50]">本</span></strong
+              >{{ totalBooks }}
+              <span class="text-xs font-semibold text-[#4a5c50]">{{
+                t('summary.booksUnit')
+              }}</span></strong
             >
           </div>
         </div>
@@ -81,11 +91,13 @@ onMounted(load)
           </div>
           <div>
             <p class="text-xs font-extrabold uppercase tracking-wider text-[#4a5c50]">
-              累计阅读时长
+              {{ t('summary.totalTime') }}
             </p>
             <strong class="mt-0.5 block text-2xl font-black text-[#0f1e14]"
               >{{ Math.round(totalSeconds / 60) }}
-              <span class="text-xs font-semibold text-[#4a5c50]">分钟</span></strong
+              <span class="text-xs font-semibold text-[#4a5c50]">{{
+                t('summary.minutesUnit')
+              }}</span></strong
             >
           </div>
         </div>
@@ -98,7 +110,7 @@ onMounted(load)
           </div>
           <div>
             <p class="text-xs font-extrabold uppercase tracking-wider text-[#4a5c50]">
-              平均阅读进度
+              {{ t('summary.avgProgress') }}
             </p>
             <strong class="mt-0.5 block text-2xl font-black text-[#0f1e14]">
               {{
@@ -115,11 +127,11 @@ onMounted(load)
       <div class="mt-6 library-card rounded-2xl p-4 sm:p-5">
         <div class="flex items-center gap-2 mb-4 pb-2 border-b border-emerald-500/5">
           <History class="size-5 text-[#0f7643] opacity-80" />
-          <h2 class="text-base font-extrabold text-[#0f1e14]">最近阅读记录</h2>
+          <h2 class="text-base font-extrabold text-[#0f1e14]">{{ t('summary.recent') }}</h2>
         </div>
 
         <div v-if="!records.length" class="text-xs text-[#4a5c50]/60 italic py-2">
-          暂无阅读记录。打开一本电子书，开始记录您的阅读之旅吧。
+          {{ t('summary.empty') }}
         </div>
 
         <div v-else class="divide-y divide-emerald-500/5">
@@ -132,7 +144,8 @@ onMounted(load)
               class="hover:text-[#0f7643] font-bold text-[#0f1e14] transition-colors truncate max-w-lg"
               :to="`/books/${record.book}/read?page=${record.page_number}`"
             >
-              《{{ record.expand?.book?.title || '未知书籍' }}》 · 第 {{ record.page_number }} 页
+              《{{ record.expand?.book?.title || t('summary.unknownBook') }}》 ·
+              {{ t('common.pageN', { n: record.page_number }) }}
             </RouterLink>
 
             <!-- Beautiful Horizontal Progress Bar -->

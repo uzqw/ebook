@@ -5,7 +5,9 @@ import { BookOpen, Eye, EyeOff, Loader2 } from '@lucide/vue'
 import { authApi } from '@/services/api'
 import Button from '@/components/ui/Button.vue'
 import Input from '@/components/ui/Input.vue'
+import { useI18n } from 'vue-i18n'
 
+const { t } = useI18n()
 const router = useRouter()
 const route = useRoute()
 const email = ref(import.meta.env.DEV ? 'demo@e.co' : '')
@@ -20,7 +22,7 @@ async function submit() {
     await authApi.login(email.value, password.value)
     await router.push(String(route.query.redirect || '/books'))
   } catch (err) {
-    error.value = err instanceof Error ? err.message : '登录失败'
+    error.value = err instanceof Error ? err.message : t('auth.loginFailed')
   } finally {
     loading.value = false
   }
@@ -37,15 +39,15 @@ async function submit() {
           <p class="text-xs font-extrabold uppercase tracking-widest text-[#705c21]">
             Ebook Reader
           </p>
-          <h1 class="text-2xl font-extrabold text-[#142217]">登录青简书房</h1>
+          <h1 class="text-2xl font-extrabold text-[#142217]">{{ t('auth.loginTitle') }}</h1>
         </div>
       </div>
       <div class="space-y-4">
         <label class="grid gap-1.5 text-sm font-bold text-[#384c3d]"
-          >邮箱<Input v-model="email" type="email" autocomplete="email" required
+          >{{ t('auth.email') }}<Input v-model="email" type="email" autocomplete="email" required
         /></label>
         <label class="grid gap-1.5 text-sm font-bold text-[#384c3d]"
-          >密码
+          >{{ t('auth.password') }}
           <span class="relative block">
             <Input
               v-model="password"
@@ -57,7 +59,7 @@ async function submit() {
             <button
               type="button"
               class="absolute right-1 top-1/2 grid size-9 -translate-y-1/2 place-items-center rounded-md text-[#384c3d] hover:bg-[#edf3e8]"
-              :aria-label="showPassword ? '隐藏密码' : '显示密码'"
+              :aria-label="showPassword ? t('auth.hidePassword') : t('auth.showPassword')"
               @click="showPassword = !showPassword"
             >
               <EyeOff v-if="showPassword" class="size-4" />
@@ -73,13 +75,14 @@ async function submit() {
           {{ error }}
         </p>
         <Button type="submit" class="w-full" :disabled="loading"
-          ><Loader2 v-if="loading" class="size-4 animate-spin" />登录</Button
+          ><Loader2 v-if="loading" class="size-4 animate-spin" />{{ t('auth.login') }}</Button
         >
       </div>
       <p class="mt-5 text-center text-sm text-[#384c3d]">
-        还没有账号？<RouterLink class="font-extrabold text-[#15803d]" to="/register"
-          >立即注册</RouterLink
-        >
+        {{ t('auth.noAccount')
+        }}<RouterLink class="font-extrabold text-[#15803d]" to="/register">{{
+          t('auth.registerNow')
+        }}</RouterLink>
       </p>
     </form>
   </main>

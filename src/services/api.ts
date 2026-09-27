@@ -87,7 +87,7 @@ export const booksApi = {
       await pb.collection('users').authRefresh()
       return this.fetchPageImage(bookId, page, false)
     }
-    if (!response.ok) throw new Error(`页面图片加载失败: ${response.status}`)
+    if (!response.ok) throw new Error(`Page image failed: ${response.status}`)
     return response.blob()
   },
   async fetchPageIllustrations(
@@ -102,7 +102,7 @@ export const booksApi = {
       await pb.collection('users').authRefresh()
       return this.fetchPageIllustrations(bookId, page, false)
     }
-    if (!response.ok) throw new Error(`页面插图加载失败: ${response.status}`)
+    if (!response.ok) throw new Error(`Page illustrations failed: ${response.status}`)
     return response.json()
   },
   pageHtmlUrl(bookId: string, page: number) {
@@ -116,7 +116,7 @@ export const booksApi = {
       await pb.collection('users').authRefresh()
       return this.fetchPageHtml(bookId, page, false)
     }
-    if (!response.ok) throw new Error(`页面加载失败: ${response.status}`)
+    if (!response.ok) throw new Error(`Page load failed: ${response.status}`)
     return response.text()
   },
   fontUrl() {

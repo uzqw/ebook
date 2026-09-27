@@ -21,7 +21,7 @@ export async function cachedCjkFontUrl() {
     let response = await cache.match(url)
     if (!response) {
       response = await fetch(url, { cache: 'force-cache' })
-      if (!response.ok) throw new Error(`字体加载失败: ${response.status}`)
+      if (!response.ok) throw new Error(`Font load failed: ${response.status}`)
       await cache.put(url, response.clone())
     }
     objectUrl = URL.createObjectURL(await response.blob())

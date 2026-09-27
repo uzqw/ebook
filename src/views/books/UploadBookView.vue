@@ -6,6 +6,9 @@ import { booksApi } from '@/services/api'
 import Button from '@/components/ui/Button.vue'
 import Input from '@/components/ui/Input.vue'
 import Textarea from '@/components/ui/Textarea.vue'
+import { useI18n } from 'vue-i18n'
+
+const { t } = useI18n()
 
 const router = useRouter()
 const title = ref('')
@@ -26,7 +29,7 @@ function onFile(e: Event) {
 
 async function submit() {
   if (!file.value) {
-    error.value = '请选择电子书文件'
+    error.value = t('upload.pickFile')
     return
   }
   loading.value = true
@@ -40,7 +43,7 @@ async function submit() {
     })
     await router.push(`/books/${book.id}/read`)
   } catch (err) {
-    error.value = err instanceof Error ? err.message : '上传失败'
+    error.value = err instanceof Error ? err.message : t('upload.failed')
   } finally {
     loading.value = false
   }
@@ -54,16 +57,18 @@ async function submit() {
         <p class="text-xs font-extrabold uppercase tracking-widest text-[#0f7643] hidden sm:block">
           Upload
         </p>
-        <h1 class="text-xl sm:text-3xl font-black text-[#0f1e14] tracking-tight">上传书籍</h1>
+        <h1 class="text-xl sm:text-3xl font-black text-[#0f1e14] tracking-tight">
+          {{ t('upload.title') }}
+        </h1>
         <p class="mt-1 text-sm text-[#4a5c50] hidden sm:block">
-          支持 PDF、EPUB、MOBI。上传后即刻在后台进行解析，完成后自动生成精美图册。
+          {{ t('upload.subtitle') }}
         </p>
       </div>
     </div>
 
     <form class="panel mt-6 space-y-6" @submit.prevent="submit">
       <div class="grid gap-2">
-        <label class="text-sm font-bold text-[#0f1e14]">电子书文件</label>
+        <label class="text-sm font-bold text-[#0f1e14]">{{ t('upload.fileLabel') }}</label>
 
         <div
           class="border-2 border-dashed border-emerald-500/20 hover:border-[#0f7643]/40 bg-emerald-50/5 hover:bg-emerald-50/15 rounded-2xl p-8 flex flex-col items-center justify-center cursor-pointer transition-all gap-2 text-center"
@@ -71,9 +76,9 @@ async function submit() {
         >
           <FileUp class="size-8 text-[#0f7643] opacity-80" />
           <span class="text-sm font-semibold text-[#0f1e14]">{{
-            file ? file.name : '点击选择或拖拽电子书文件'
+            file ? file.name : t('upload.fileChoose')
           }}</span>
-          <span class="text-xs text-[#4a5c50]">支持 PDF, EPUB, MOBI 格式</span>
+          <span class="text-xs text-[#4a5c50]">{{ t('upload.fileHint') }}</span>
           <input
             ref="fileInput"
             type="file"
@@ -86,29 +91,29 @@ async function submit() {
       </div>
 
       <div class="grid gap-2">
-        <label class="text-sm font-bold text-[#0f1e14]">书名</label>
+        <label class="text-sm font-bold text-[#0f1e14]">{{ t('upload.nameLabel') }}</label>
         <Input
           v-model="title"
           required
-          placeholder="例如：Java 场景题攻略"
+          :placeholder="t('upload.namePlaceholder')"
           class="rounded-xl border-emerald-500/10 focus:border-[#0f7643]/30 focus:ring-1 focus:ring-[#0f7643]/30"
         />
       </div>
 
       <div class="grid gap-2">
-        <label class="text-sm font-bold text-[#0f1e14]">作者</label>
+        <label class="text-sm font-bold text-[#0f1e14]">{{ t('upload.authorLabel') }}</label>
         <Input
           v-model="author"
-          placeholder="可选，例如：未知作者"
+          :placeholder="t('upload.authorPlaceholder')"
           class="rounded-xl border-emerald-500/10 focus:border-[#0f7643]/30 focus:ring-1 focus:ring-[#0f7643]/30"
         />
       </div>
 
       <div class="grid gap-2">
-        <label class="text-sm font-bold text-[#0f1e14]">简介</label>
+        <label class="text-sm font-bold text-[#0f1e14]">{{ t('upload.descLabel') }}</label>
         <Textarea
           v-model="description"
-          placeholder="可选：简要介绍或备注信息"
+          :placeholder="t('upload.descPlaceholder')"
           class="rounded-xl border-emerald-500/10 focus:border-[#0f7643]/30 focus:ring-1 focus:ring-[#0f7643]/30 min-h-24"
         />
       </div>
@@ -128,7 +133,7 @@ async function submit() {
       >
         <Loader2 v-if="loading" class="size-5 animate-spin mr-2" />
         <FileUp v-else class="size-5 mr-2" />
-        {{ loading ? '上传中...' : '开始上传并解析' }}
+        {{ loading ? t('upload.uploading') : t('upload.submit') }}
       </Button>
     </form>
   </section>

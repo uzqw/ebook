@@ -19,6 +19,7 @@
     "pocketbase": "^0.26.2",
     "viewerjs": "^1.11.8",
     "vue": "^3.5.18",
+    "vue-i18n": "^10.0.7",
     "vue-router": "^4.5.1"
   },
   "devDependencies": {

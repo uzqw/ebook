@@ -8,6 +8,9 @@ import AlertDialog from '@/components/ui/AlertDialog.vue'
 import Button from '@/components/ui/Button.vue'
 import Badge from '@/components/ui/Badge.vue'
 import Input from '@/components/ui/Input.vue'
+import { useI18n } from 'vue-i18n'
+
+const { t } = useI18n()
 
 const books = ref<BookRecord[]>([])
 const loading = ref(false)
@@ -21,15 +24,19 @@ const statusFilter = ref('all')
 
 const deleteDescription = computed(() =>
   pendingDeleteBook.value
-    ? `将永久删除《${pendingDeleteBook.value.title}》以及解析页面、书签、笔记和阅读记录。此操作不可撤销。`
-    : '将永久删除这本书以及相关阅读数据。',
+    ? t('library.deleteConfirmNamed', { title: pendingDeleteBook.value.title })
+    : t('library.deleteConfirm'),
 )
 
 const statusTone = (status: string) =>
   status === 'completed' ? 'green' : status === 'failed' ? 'red' : 'amber'
 const statusText = (status: string) =>
-  ({ pending: '待解析', processing: '解析中', completed: '已解析', failed: '解析失败' })[status] ||
-  status
+  ({
+    pending: t('status.pending'),
+    processing: t('status.processing'),
+    completed: t('status.completed'),
+    failed: t('status.failed'),
+  })[status] || status
 
 // Generate deterministic beautiful pastel/dark gradient cover styles based on book title
 function getBookCoverStyle(title: string) {
@@ -72,7 +79,7 @@ async function load() {
   try {
     books.value = await booksApi.list()
   } catch (err) {
-    error.value = err instanceof Error ? err.message : '加载失败'
+    error.value = err instanceof Error ? err.message : t('library.loadFailed')
   } finally {
     loading.value = false
   }
@@ -93,7 +100,7 @@ async function confirmRemove() {
     pendingDeleteBook.value = null
     await load()
   } catch (err) {
-    error.value = err instanceof Error ? err.message : '删除失败'
+    error.value = err instanceof Error ? err.message : t('library.deleteFailed')
   } finally {
     deleting.value = false
   }
@@ -109,9 +116,11 @@ onMounted(load)
         <p class="text-xs font-extrabold uppercase tracking-widest text-[#0f7643] hidden sm:block">
           Library
         </p>
-        <h1 class="text-xl sm:text-3xl font-black text-[#0f1e14] tracking-tight">书籍管理</h1>
+        <h1 class="text-xl sm:text-3xl font-black text-[#0f1e14] tracking-tight">
+          {{ t('library.title') }}
+        </h1>
         <p class="mt-1 text-sm text-[#4a5c50] hidden sm:block">
-          管理并阅读您的电子书，上传后自动解析页数、文本，支持多端阅读进度同步。
+          {{ t('library.subtitle') }}
         </p>
       </div>
       <div class="flex gap-2">
@@ -119,11 +128,13 @@ onMounted(load)
           variant="outline"
           @click="load"
           class="border-emerald-500/10 hover:bg-emerald-50 text-[#0f7643] p-2 h-9 w-9 sm:h-11 sm:w-auto sm:px-4 rounded-lg sm:rounded-xl"
-          ><RefreshCw class="size-4" /><span class="hidden sm:inline">刷新</span></Button
+          ><RefreshCw class="size-4" /><span class="hidden sm:inline">{{
+            t('library.refresh')
+          }}</span></Button
         >
         <RouterLink to="/books/upload" class="hidden sm:inline-flex"
           ><Button class="bg-[#0f7643] hover:bg-[#064e2b]"
-            ><FileUp data-icon="inline-start" />上传书籍</Button
+            ><FileUp data-icon="inline-start" />{{ t('library.upload') }}</Button
           ></RouterLink
         >
       </div>
@@ -135,7 +146,7 @@ onMounted(load)
         <Search class="absolute left-3.5 top-1/2 -translate-y-1/2 size-4 text-[#4a5c50]/60" />
         <Input
           v-model="searchQuery"
-          placeholder="搜索书名或作者..."
+          :placeholder="t('library.searchPlaceholder')"
           class="pl-10 h-10 w-full rounded-xl border border-emerald-500/10 bg-white shadow-sm focus:border-[#0f7643]/30 focus:ring-1 focus:ring-[#0f7643]/30 text-sm"
         />
       </div>
@@ -153,11 +164,11 @@ onMounted(load)
         >
           {{
             {
-              all: '全部',
-              completed: '已解析',
-              processing: '解析中',
-              pending: '待解析',
-              failed: '解析失败',
+              all: t('library.filterAll'),
+              completed: t('status.completed'),
+              processing: t('status.processing'),
+              pending: t('status.pending'),
+              failed: t('status.failed'),
             }[status]
           }}
         </button>
@@ -170,23 +181,25 @@ onMounted(load)
       class="mb-4 flex flex-wrap items-center justify-between gap-2 rounded-lg border border-red-200 bg-red-50 p-3 text-sm font-semibold text-red-700"
     >
       <span>{{ error }}</span>
-      <Button size="sm" variant="outline" @click="load">重试</Button>
+      <Button size="sm" variant="outline" @click="load">{{ t('common.retry') }}</Button>
     </div>
-    <div v-if="loading" class="panel text-[#4a5c50]">正在加载书架...</div>
+    <div v-if="loading" class="panel text-[#4a5c50]">{{ t('library.loading') }}</div>
 
     <div v-else-if="!books.length" class="panel grid place-items-center py-16 text-center">
       <BookOpen class="mb-3 size-12 text-[#0f7643]" />
-      <h2 class="text-xl font-extrabold text-[#0f1e14]">书架还是空的</h2>
-      <p class="mt-2 text-sm text-[#4a5c50]">上传第一本书，开始您的阅读之旅。</p>
+      <h2 class="text-xl font-extrabold text-[#0f1e14]">{{ t('library.emptyTitle') }}</h2>
+      <p class="mt-2 text-sm text-[#4a5c50]">{{ t('library.emptyHint') }}</p>
       <RouterLink class="mt-5" to="/books/upload"
-        ><Button class="bg-[#0f7643] hover:bg-[#064e2b]">上传第一本书</Button></RouterLink
+        ><Button class="bg-[#0f7643] hover:bg-[#064e2b]">{{
+          t('library.emptyCta')
+        }}</Button></RouterLink
       >
     </div>
 
     <div v-else-if="!filteredBooks.length" class="panel grid place-items-center py-16 text-center">
       <BookOpen class="mb-3 size-12 text-[#4a5c50]/40" />
-      <h2 class="text-lg font-bold text-[#0f1e14]">未找到匹配的书籍</h2>
-      <p class="mt-1 text-sm text-[#4a5c50]">请尝试更换搜索词或筛选条件。</p>
+      <h2 class="text-lg font-bold text-[#0f1e14]">{{ t('library.noMatchTitle') }}</h2>
+      <p class="mt-1 text-sm text-[#4a5c50]">{{ t('library.noMatchHint') }}</p>
     </div>
 
     <div v-else class="grid gap-5 md:grid-cols-1 xl:grid-cols-2">
@@ -199,7 +212,7 @@ onMounted(load)
         <div class="book-cover-wrapper mx-auto sm:mx-0">
           <div class="book-cover-3d" :style="getBookCoverStyle(book.title)">
             <div class="book-cover-title">{{ cleanCoverTitle(book.title) }}</div>
-            <div class="book-cover-author">{{ book.author || '未知作者' }}</div>
+            <div class="book-cover-author">{{ book.author || t('common.unknownAuthor') }}</div>
           </div>
         </div>
 
@@ -214,9 +227,9 @@ onMounted(load)
                 {{ book.title }}
               </h2>
               <p class="mt-1.5 text-xs font-semibold text-[#4a5c50] flex items-center gap-1.5">
-                <span>{{ book.author || '未知作者' }}</span>
+                <span>{{ book.author || t('common.unknownAuthor') }}</span>
                 <span class="text-emerald-500/30">•</span>
-                <span>{{ book.page_count || 0 }} 页</span>
+                <span>{{ t('library.pageCount', { n: book.page_count || 0 }) }}</span>
               </p>
             </div>
             <Badge
@@ -228,11 +241,7 @@ onMounted(load)
           </div>
 
           <p class="mt-3 line-clamp-2 text-xs text-[#4a5c50]/90 leading-relaxed">
-            {{
-              book.description ||
-              book.parse_error ||
-              '暂无简介。该书籍解析完成即可在阅读页面查阅其目录及内容。'
-            }}
+            {{ book.description || book.parse_error || t('library.noDesc') }}
           </p>
 
           <div class="mt-auto pt-3 flex items-center justify-between border-t border-emerald-500/5">
@@ -243,7 +252,7 @@ onMounted(load)
                   class="h-8 rounded-lg px-3 text-xs bg-[#0f7643] hover:bg-[#064e2b]"
                 >
                   <BookOpen class="size-3.5 mr-1" />
-                  阅读
+                  {{ t('library.read') }}
                 </Button>
               </RouterLink>
               <RouterLink :to="`/books/${book.id}/info`">
@@ -253,7 +262,7 @@ onMounted(load)
                   class="h-8 rounded-lg px-3 text-xs border-emerald-500/10 hover:bg-emerald-50 text-[#0f7643]"
                 >
                   <Info class="size-3.5 mr-1" />
-                  详情
+                  {{ t('library.details') }}
                 </Button>
               </RouterLink>
             </div>
@@ -264,7 +273,7 @@ onMounted(load)
               @click="requestRemove(book)"
             >
               <Trash2 class="size-3.5 mr-1" />
-              删除
+              {{ t('library.delete') }}
             </Button>
           </div>
         </div>
@@ -273,10 +282,10 @@ onMounted(load)
 
     <AlertDialog
       v-model:open="deleteDialogOpen"
-      title="删除书籍？"
+      :title="t('library.deleteTitle')"
       :description="deleteDescription"
-      confirm-text="删除书籍"
-      cancel-text="取消"
+      :confirm-text="t('library.deleteTitle2')"
+      :cancel-text="t('common.cancel')"
       :loading="deleting"
       @confirm="confirmRemove"
     />
