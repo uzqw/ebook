@@ -1,6 +1,32 @@
 # ebook
 
-> A lightweight, server-hosted ebook reader with a Vue frontend, a PocketBase-based backend, and multi-device reading over the network.
+**A self-hosted ebook reader your LLM can read.**
+
+Upload PDF/EPUB/MOBI, read them in the browser on any device, keep your
+progress in sync — and let Claude, Cursor, or any MCP client browse your
+library and quote chapters through the built-in read-only MCP server.
+
+![Library](docs/screenshots/v2-library.png)
+![Reader](docs/screenshots/good-reader.png)
+![Reader on mobile](docs/screenshots/m-dark-reader.png)
+
+**One command:**
+
+```bash
+docker run -d -p 18094:18093 -v ebook-reader-data:/app/pb_data uzqw/ebook:latest
+```
+
+Open <http://127.0.0.1:18094> — first-run bootstrap creates the schema and a
+demo account automatically.
+
+## Why not Calibre-Web / Kavita?
+
+- Single container, single Go binary + PocketBase — no external DB, no sidecars.
+- Per-device reading progress, bookmarks, and notes sync through one backend.
+- **Embedded MCP server**: your LLM assistant can list shelves, walk TOCs, and
+  read page ranges — no plugins, no extra service. (See [MCP server](#mcp-server).)
+
+⭐ If this is useful, a star helps others find it.
 
 ## Deployment
 
