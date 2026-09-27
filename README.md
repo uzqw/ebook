@@ -1,4 +1,4 @@
-# ebook
+# vellum
 
 **A self-hosted ebook reader your LLM can read.**
 
@@ -18,7 +18,7 @@ library and quote chapters through the built-in read-only MCP server.
 **One command:**
 
 ```bash
-docker run -d -p 18094:18093 -v ebook-reader-data:/app/pb_data uzqw/ebook:latest
+docker run -d -p 18094:18093 -v vellum-data:/app/pb_data uzqw/vellum:latest
 ```
 
 Open <http://127.0.0.1:18094> — first-run bootstrap creates the schema and a
@@ -41,11 +41,11 @@ The published image currently supports `linux/amd64`:
 
 ```bash
 docker run -d \
-  --name ebook-reader \
+  --name vellum \
   --restart unless-stopped \
   -p 18094:18093 \
-  -v ebook-reader-data:/app/pb_data \
-  uzqw/ebook:latest
+  -v vellum-data:/app/pb_data \
+  uzqw/vellum:latest
 ```
 
 Open <http://127.0.0.1:18094>. On first start the container automatically creates
@@ -55,10 +55,10 @@ command is required.
 Upgrade without losing books or reading data:
 
 ```bash
-docker pull uzqw/ebook:latest
-docker rm -f ebook-reader
-docker run -d --name ebook-reader --restart unless-stopped \
-  -p 18094:18093 -v ebook-reader-data:/app/pb_data uzqw/ebook:latest
+docker pull uzqw/vellum:latest
+docker rm -f vellum
+docker run -d --name vellum --restart unless-stopped \
+  -p 18094:18093 -v vellum-data:/app/pb_data uzqw/vellum:latest
 ```
 
 ### Build from source
@@ -66,8 +66,8 @@ docker run -d --name ebook-reader --restart unless-stopped \
 A Linux host only needs Docker with Compose v2 and `make`:
 
 ```bash
-git clone https://github.com/uzqw/ebook.git
-cd ebook
+git clone https://github.com/uzqw/vellum.git
+cd vellum
 make deploy
 ```
 
@@ -76,7 +76,7 @@ The command creates `.env` when missing, builds the image, and starts the app at
 that port publicly. Set `DOCKER_HOST_PORT` to use another host port.
 
 Deployment stores PocketBase data under
-`${APP_DATA_ROOT}/ebook-reader/pb_data`. Set `APP_DATA_ROOT` to an absolute
+`${APP_DATA_ROOT}/vellum/pb_data`. Set `APP_DATA_ROOT` to an absolute
 application data root, or leave it unset to use the XDG user default:
 
 ```text

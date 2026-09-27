@@ -1,6 +1,6 @@
 export default {
   app: {
-    name: 'Qingjian Library',
+    name: 'Vellum',
   },
   common: {
     retry: 'Retry',
@@ -26,7 +26,7 @@ export default {
     skipToContent: 'Skip to main content',
   },
   auth: {
-    loginTitle: 'Sign in to Qingjian Library',
+    loginTitle: 'Sign in to Vellum',
     login: 'Sign in',
     loginFailed: 'Sign-in failed',
     registerTitle: 'Create a reader account',
