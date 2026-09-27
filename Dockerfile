@@ -17,7 +17,8 @@ RUN --mount=type=cache,id=ebook-reader-apt-cache,target=/var/cache/apt,sharing=l
        ca-certificates \
        curl \
        tzdata \
-       fonts-droid-fallback
+       fonts-droid-fallback \
+    && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
 COPY fonts/ /app/fonts/
@@ -46,7 +47,8 @@ RUN --mount=type=cache,id=ebook-reader-backend-apt-cache,target=/var/cache/apt,s
     apt-get update \
     && apt-get install -y --no-install-recommends \
        ca-certificates \
-       build-essential
+       build-essential \
+    && rm -rf /var/lib/apt/lists/*
 ENV GOPROXY=https://goproxy.cn,direct
 WORKDIR /src
 COPY backend/go.mod backend/go.sum ./
