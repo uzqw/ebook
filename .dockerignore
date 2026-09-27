@@ -11,3 +11,11 @@ logs
 *.log
 *.pdf
 arch-reference
+.gitea
+.github
+docs
+ops
+scrape-targets
+复盘
+*.md
+!LICENSE.md
