@@ -1,6 +1,6 @@
 export default {
   app: {
-    name: 'Vellum',
+    name: 'ownbook',
   },
   common: {
     retry: 'Retry',
@@ -26,7 +26,7 @@ export default {
     skipToContent: 'Skip to main content',
   },
   auth: {
-    loginTitle: 'Sign in to Vellum',
+    loginTitle: 'Sign in to ownbook',
     login: 'Sign in',
     loginFailed: 'Sign-in failed',
     registerTitle: 'Create a reader account',

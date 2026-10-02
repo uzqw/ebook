@@ -14,7 +14,7 @@ concurrency:
   cancel-in-progress: true
 
 env:
-  IMAGE_NAME: uzqw/vellum
+  IMAGE_NAME: uzqw/ownbook
 
 jobs:
   build:

@@ -1,6 +1,6 @@
 export default {
   app: {
-    name: 'Vellum',
+    name: 'ownbook',
   },
   common: {
     retry: '重试',
@@ -26,7 +26,7 @@ export default {
     skipToContent: '跳到主要内容',
   },
   auth: {
-    loginTitle: '登录 Vellum',
+    loginTitle: '登录 ownbook',
     login: '登录',
     loginFailed: '登录失败',
     registerTitle: '创建读者账号',
